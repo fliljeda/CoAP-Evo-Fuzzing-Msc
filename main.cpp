@@ -9,6 +9,46 @@
 
 using namespace std;
 
+struct configuration{
+    bool ready;
+    string coapPath;
+    string logDir;
+    string dumpOpt;
+    string coapBinName;
+} configs;
+
+/* Reads configs from a file. Whitespace sensitive  */
+void readConfig(string filePath = "./config.txt"){
+    ifstream fs(filePath);
+    string line;
+    while(getline(fs,line)){
+        size_t i = 0;
+        string option = "";
+        string value = "";
+        for(; i < line.length() && (line[i] != '='); i++){
+            option.push_back(line[i]);
+        }
+        i++; //expend =
+        for(; i < line.length(); i++){
+            value.push_back(line[i]);
+        }
+        if(value.length() == 0){
+            continue;
+        }
+        if(option.compare("coappath") == 0){
+            configs.coapPath = value;
+        }else if(option.compare("logdir") == 0){
+            configs.logDir = value;
+        }else if(option.compare("dumpopt") == 0){
+            configs.dumpOpt = value;
+        }else if(option.compare("coapbinname") == 0){
+            configs.coapBinName = value;
+        }
+    }
+    configs.ready = 1;
+}
+
+
 struct basic_block {
     size_t number;
     int occurrances = 0;
@@ -59,7 +99,7 @@ int findMod(ifstream &fs, string binName){
 }
 
 //Parses the BB lines of the file. Adding unique BB as elements of the returned vector
-vector<basic_block> calcUniqueBlocks(istream& fs, int selectedMod){
+vector<basic_block> calcUniqueBlocks(ifstream& fs, int selectedMod){
     string str = "";
     int numOfChosenBB = 0;
     int numOfBB = 0;
@@ -121,10 +161,17 @@ vector<basic_block> parseDrcov(string pathToFile, string binName){
 
 /* Forks a child process that starts the CoAP binary using dynamorio  
  * Returns the pid of the coap server*/
-int runDynamorio(string exe = "../servers/microcoap/coap",
-                 string logDir = "../servers/coveragelogs",
-                 string dumpOpt = "-dump_text"){
-
+int runDynamorio(){
+    string exe, logDir, dumpOpt;
+    if(configs.ready){
+        exe = configs.coapPath;
+        logDir = configs.logDir;
+        dumpOpt = configs.dumpOpt;
+    }else{
+        exe = "../servers/microcoap/coap";
+        logDir = "../servers/coveragelogs";
+        dumpOpt = "-dump_text";
+    }
     string command = "../dynamorio/build/bin64/drrun -t drcov -logdir ";
     command.append(logDir).append(" ").append(dumpOpt).append(" -- ").append(exe);
 
@@ -135,7 +182,7 @@ int runDynamorio(string exe = "../servers/microcoap/coap",
         cout << "I am parent, child is: " << pid+1 << "\n";
     }
     
-    //TODO make coap server process id more robust (it is +1 because sh creates a new process
+    //TODO make coap server process id more robust (it is +1 because sh creates a new process)
     return pid+1;
 }
 
@@ -147,6 +194,7 @@ int killProc(int procId){
     return 0;
 }
 
+/* Utility function to get the pid format of the log names. 5 characters with leading zeroes*/
 string getLogPidString(int pid){
     string s = to_string(pid);
     string retStr = "";
@@ -158,35 +206,42 @@ string getLogPidString(int pid){
     return retStr;
 }
 
+void calcFitness(int coapPid){
+    string coapPidStr = getLogPidString(coapPid);
+    string path = string("../servers/coveragelogs/").append("drcov.coap.").append(coapPidStr).append(".0000.proc.log");
+
+    string binName;
+    if(!configs.ready){
+        cout << "Config was not ready. Verify that the config file exist and has the proper format. Exiting \n";
+        exit(0);
+    }else{
+        binName = configs.coapBinName;
+    }
+
+    cout << path << "\n";
+    parseDrcov(path, binName);
+
+}
+
 
 int main(int argc, char *argv[]){
+
+    readConfig();
 
     int coapPid = runDynamorio();
     if(coapPid < 0){
         cout << "Could not run dynamorio properly\n";
     }
     string tmp;
+    cout << "Waiting for CoAP to run. Enter any character to continue: ";
     cin >> tmp;
     killProc(coapPid);
 
-    string coapPidStr = getLogPidString(coapPid);
-    string path = string("../servers/coveragelogs/").append("drcov.coap.").append(coapPidStr).append(".0000.proc.log");
+    int sleepTime = 1;
+    cout << "Sleeping " << sleepTime << " seconds to allow dynamorio to write results\n";
+    sleep(sleepTime);
 
-    //To only use coverage of modules related to the implementation
-    string binName;
-    if(argc < 2){
-        cout << "Name of CoAP binary: ";
-        cin >> binName;
-    }else if(argc == 2){
-        binName = argv[1];
-    }else if(argc == 3){
-        binName = argv[1];
-        path = argv[2];
-    }
-
-    cout << path << "\n";
-    parseDrcov(path, binName);
-
+    calcFitness(coapPid);
 
     return 0;
 }
