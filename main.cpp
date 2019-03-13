@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include <unistd.h>
-#include <vector>
 #include <iostream>
 #include <fstream>
-#include <string>
 #include <regex>
 #include <sys/wait.h>
+#include <experimental/filesystem>
 
 using namespace std;
+namespace fsys = std::experimental::filesystem;
 
 struct configuration{
     bool ready;
@@ -16,6 +16,42 @@ struct configuration{
     string dumpOpt;
     string coapBinName;
 } configs;
+
+/* Returns  */
+string getNowDateString(){
+        std::time_t now_c = time(nullptr);
+        char time[20];
+        strftime(time, sizeof(time), "%F", localtime(&now_c));
+        return string(time);
+}
+
+/* Checks the log directory if there is a directory in it for today's log
+ * If so: append that directory to the logdir path
+ * If not: create the directory and append it to path*/
+bool setCurrentLogdir(string& logDir){
+    string dateStr = getNowDateString();
+    bool dirExists = 0;
+    for(fsys::directory_entry p: fsys::directory_iterator(logDir)){
+        if(!fsys::is_directory(p)){
+            continue;
+        }
+        string fName = (string)(p.path().filename());
+        if(fName.compare(dateStr) == 0){
+            dirExists = 1;
+            break;
+        }
+    }
+    string newPath = logDir.append("/").append(dateStr).append("/");
+    if(!dirExists){
+         int res = fsys::create_directory(newPath);
+         if(!res){
+             return 0;
+         }
+    }    
+
+    configs.logDir = newPath;
+    return 1;
+}
 
 /* Reads configs from a file. Whitespace sensitive  */
 void readConfig(string filePath = "./config.txt"){
@@ -39,6 +75,10 @@ void readConfig(string filePath = "./config.txt"){
             configs.coapPath = value;
         }else if(option.compare("logdir") == 0){
             configs.logDir = value;
+            int res = setCurrentLogdir(configs.logDir);
+            if(!res){
+                cout << "Failed to find correct log folder and could not create one\n";
+            }
         }else if(option.compare("dumpopt") == 0){
             configs.dumpOpt = value;
         }else if(option.compare("coapbinname") == 0){
@@ -70,7 +110,7 @@ bool addBB(size_t num, vector<basic_block>& v){
 }
 
 //Find module ID of the targetted application
-//Searches the table for lins that contain the name
+//Searches the table for lines that contain the name
 int findMod(ifstream &fs, string binName){
     string str;
     int count;
@@ -99,7 +139,7 @@ int findMod(ifstream &fs, string binName){
 }
 
 //Parses the BB lines of the file. Adding unique BB as elements of the returned vector
-vector<basic_block> calcUniqueBlocks(ifstream& fs, int selectedMod){
+vector<basic_block> calcBasicBlocks(ifstream& fs, int selectedMod){
     string str = "";
     int numOfChosenBB = 0;
     int numOfBB = 0;
@@ -155,7 +195,7 @@ vector<basic_block> parseDrcov(string pathToFile, string binName){
         cout << selectedMod << "\n";
     }
 
-    vector<basic_block> uniqueBlocks = calcUniqueBlocks(fs,selectedMod);
+    vector<basic_block> uniqueBlocks = calcBasicBlocks(fs,selectedMod);
     return uniqueBlocks;
 }
 
@@ -208,7 +248,9 @@ string getLogPidString(int pid){
 
 void calcFitness(int coapPid){
     string coapPidStr = getLogPidString(coapPid);
-    string path = string("../servers/coveragelogs/").append("drcov.coap.").append(coapPidStr).append(".0000.proc.log");
+    string redundancy = "0000";
+    string path = string(configs.logDir).append("drcov.coap.").append(coapPidStr)
+        .append(".").append(redundancy).append(".proc.log");
 
     string binName;
     if(!configs.ready){
@@ -233,7 +275,7 @@ int main(int argc, char *argv[]){
         cout << "Could not run dynamorio properly\n";
     }
     string tmp;
-    cout << "Waiting for CoAP to run. Enter any character to continue: ";
+    cout << "Waiting with CoAP running. Enter any character to kill CoAP and retrieve fitness: ";
     cin >> tmp;
     killProc(coapPid);
 
