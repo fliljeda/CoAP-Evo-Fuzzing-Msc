@@ -88,6 +88,16 @@ void readConfig(string filePath = "./config.txt"){
     configs.ready = 1;
 }
 
+/* Sleep for @param milliseconds*/
+void mySleepMilli(long milliseconds){
+    struct timespec tim1, tim2;
+    tim1.tv_sec = 0;
+    tim1.tv_nsec = ((long)milliseconds) * 1000000L;
+    
+    nanosleep(&tim1, &tim2);
+
+}
+
 
 struct basic_block {
     size_t number;
@@ -199,6 +209,55 @@ vector<basic_block> parseDrcov(string pathToFile, string binName){
     return uniqueBlocks;
 }
 
+/* Look through the process list and checks if the files inside indicate that it
+ * is named a certain way. 
+ * Returns 1 if the process exists and is named as @param string name
+ * Returns 0 if it is named otherwise and if it doesnt exist*/
+bool isProcNamed(string pidStr, string name){
+    string path = string("/proc/").append(pidStr).append("/task/").append(pidStr);
+    if(!fsys::exists(path)){
+        return 0;
+    }
+    
+    ifstream fs(path.append("/status"));
+
+    string line;
+    getline(fs,line);
+    if(line.find(name) != std::string::npos){
+        return 1;
+    }else{
+        return 0;
+    }
+
+}
+bool isProcNamed(int pid, string name){ return isProcNamed(to_string(pid), name);}
+
+
+/* Looks through /proc/ to find the process named coap. CoAP is run with an extra shell and most likely
+ * it is the guessed PID but there is no way to be sure
+ * Retries the guess a number of times with delays between to increase probability of process in /proc
+ * pidGuess: the guess for which process is the coap process*/
+int findCoapPid(int pidGuess, int guessTries = 3, int guessSleepMilli = 5){
+    for(int i = 0; i < guessTries; i++){
+        cout << "Try" << "\n";
+        if(isProcNamed(pidGuess, "coap")){
+            return pidGuess;
+        }
+        mySleepMilli(guessSleepMilli);
+    }
+
+    cout << "Process "<< pidGuess << " was not the coap process, searching through /proc/\n";
+    for(fsys::directory_entry direntry: fsys::directory_iterator("/proc/")){
+        if(!fsys::is_directory(direntry)){
+            continue;
+        }
+        if(isProcNamed((string)(direntry.path().filename()), "coap")){
+            return stol((string)(direntry.path().filename()));
+        }
+    }
+    return -1;
+}
+
 /* Forks a child process that starts the CoAP binary using dynamorio  
  * Returns the pid of the coap server*/
 int runDynamorio(){
@@ -221,14 +280,16 @@ int runDynamorio(){
     }else{
         cout << "I am parent, child is: " << pid+1 << "\n";
     }
-    
-    //TODO make coap server process id more robust (it is +1 because sh creates a new process)
+
+    int coapPid = findCoapPid(pid+1);
+    cout << "Coap PID: " << coapPid << "\n";
+
     return pid+1;
 }
 
 /* Kills the process and collects the zombie */
 int killProc(int procId){
-    system(string("kill ").append(to_string(procId)).c_str());
+    kill(procId, SIGTERM);
     waitpid(procId, 0, WNOHANG);
     cout << "Killed process: " << procId << "\n";
     return 0;
