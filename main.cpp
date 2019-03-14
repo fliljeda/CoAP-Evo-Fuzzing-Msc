@@ -17,12 +17,23 @@ struct configuration{
     string coapBinName;
 } configs;
 
-/* Returns  */
+/* Returns a Y-m-d string of now */
 string getNowDateString(){
         std::time_t now_c = time(nullptr);
         char time[20];
         strftime(time, sizeof(time), "%F", localtime(&now_c));
         return string(time);
+}
+
+string stringConcat(const vector<string>& l, string separator = ""){
+    string tmp = "";
+    for(size_t i = 0; i < l.size(); i++){
+        tmp.append(l[i]);
+        if(i != l.size()-1){
+            tmp.append(separator);
+        }
+    }
+    return tmp;
 }
 
 /* Checks the log directory if there is a directory in it for today's log
@@ -119,8 +130,9 @@ bool addBB(size_t num, vector<basic_block>& v){
     return 1;
 }
 
-//Find module ID of the targetted application
-//Searches the table for lines that contain the name
+/*Find module ID of the targetted application
+ *Searches the table for lines that contain the name 
+ * Returns the module ID or -1 if it can't be found  */
 int findMod(ifstream &fs, string binName){
     string str;
     int count;
@@ -149,8 +161,7 @@ int findMod(ifstream &fs, string binName){
 }
 
 //Parses the BB lines of the file. Adding unique BB as elements of the returned vector
-vector<basic_block> calcBasicBlocks(ifstream& fs, int selectedMod){
-    string str = "";
+vector<basic_block> calcBasicBlocks(ifstream& fs, int selectedMod){ string str = "";
     int numOfChosenBB = 0;
     int numOfBB = 0;
     vector<basic_block> v;
@@ -295,11 +306,11 @@ int killProc(int procId){
     return 0;
 }
 
-/* Utility function to get the pid format of the log names. 5 characters with leading zeroes*/
-string getLogPidString(int pid){
-    string s = to_string(pid);
+/* Creates a zero initiated string of the given number*/
+string getStringZeroInit(int num, int size){
+    string s = to_string(num);
     string retStr = "";
-    int fill = 5 - s.length();
+    int fill = size - s.length();
     while(fill-- > 0){
         retStr.append("0");
     }
@@ -307,11 +318,32 @@ string getLogPidString(int pid){
     return retStr;
 }
 
+/* Calculates the pathname for the log. The naming convention is chosen by Dynamorio. 
+ * Logs are identified with the PID of the ran process and a redundancy value if two 
+ * logs with same process ID are exist */
+string calcLogPath(int coapPid){
+    string coapPidStr = getStringZeroInit(coapPid,5); //Log files are created with zero init
+    int redundancy = 0;
+    string path, fileName;
+    do{
+        ////Follows structure: <tool (drcov)>.<binary (coap)>.<pid (5 digits)>.<redundancy (4 digits)>.proc.log
+        fileName = stringConcat({"drcov", "coap", coapPidStr, getStringZeroInit(redundancy,4), "proc", "log"}, ".");
+        path = stringConcat({configs.logDir, fileName});
+
+        if(!fsys::exists(path)){
+            //If the path does not exist, it means that the previous redundancy value is the latest
+            //created by Dynamorio, and is thus the current log
+            redundancy--;
+            fileName = stringConcat({"drcov", "coap", coapPidStr, getStringZeroInit(redundancy,4), "proc", "log"}, ".");
+            path = stringConcat({configs.logDir, fileName});
+            return path;
+        }
+        redundancy++;
+    }while(redundancy < 10000);
+}
+
 void calcFitness(int coapPid){
-    string coapPidStr = getLogPidString(coapPid);
-    string redundancy = "0000";
-    string path = string(configs.logDir).append("drcov.coap.").append(coapPidStr)
-        .append(".").append(redundancy).append(".proc.log");
+    string path = calcLogPath(coapPid);
 
     string binName;
     if(!configs.ready){
@@ -340,9 +372,9 @@ int main(int argc, char *argv[]){
     cin >> tmp;
     killProc(coapPid);
 
-    int sleepTime = 1;
-    cout << "Sleeping " << sleepTime << " seconds to allow dynamorio to write results\n";
-    sleep(sleepTime);
+    int sleepTime = 500;
+    cout << "Sleeping " << sleepTime << " milliseconds to allow dynamorio to write results\n";
+    mySleepMilli(sleepTime);
 
     calcFitness(coapPid);
 
