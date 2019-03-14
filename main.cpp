@@ -251,10 +251,10 @@ bool isProcNamed(int pid, string name){ return isProcNamed(to_string(pid), name)
 int findCoapPid(int pidGuess, int guessTries = 3, int guessSleepMilli = 5){
     for(int i = 0; i < guessTries; i++){
         cout << "Try" << "\n";
+        mySleepMilli(guessSleepMilli);
         if(isProcNamed(pidGuess, "coap")){
             return pidGuess;
         }
-        mySleepMilli(guessSleepMilli);
     }
 
     cout << "Process "<< pidGuess << " was not the coap process, searching through /proc/\n";
@@ -339,7 +339,10 @@ string calcLogPath(int coapPid){
             return path;
         }
         redundancy++;
-    }while(redundancy < 10000);
+    }while(redundancy < 10000); //4 digit redundancy available
+
+    cout << "Unable to locate the intended log file for Dynamorio.\nReading: " << path << "\n"; 
+    return path;
 }
 
 void calcFitness(int coapPid){
