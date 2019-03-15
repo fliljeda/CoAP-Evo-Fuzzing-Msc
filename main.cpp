@@ -11,7 +11,7 @@ namespace fsys = std::experimental::filesystem;
 
 struct configuration{
     bool ready;
-    string coapPath;
+    string coapExeCmd;
     string logDir;
     string dumpOpt;
     string coapBinName;
@@ -82,8 +82,8 @@ void readConfig(string filePath = "./config.txt"){
         if(value.length() == 0){
             continue;
         }
-        if(option.compare("coappath") == 0){
-            configs.coapPath = value;
+        if(option.compare("coapexecmd") == 0){
+            configs.coapExeCmd = value;
         }else if(option.compare("logdir") == 0){
             configs.logDir = value;
             int res = setCurrentLogdir(configs.logDir);
@@ -163,6 +163,7 @@ int findMod(ifstream &fs, string binName){
 //Parses the BB lines of the file. Adding unique BB as elements of the returned vector
 vector<basic_block> calcBasicBlocks(ifstream& fs, int selectedMod){ string str = "";
     int numOfChosenBB = 0;
+    int calcedNumOfBB = 0;
     int numOfBB = 0;
     vector<basic_block> v;
     while(getline(fs,str)){
@@ -179,9 +180,11 @@ vector<basic_block> calcBasicBlocks(ifstream& fs, int selectedMod){ string str =
         if(str.rfind("module", 0) == 0){ //if found word is at beginning
             size_t start = str.find('[')+1;
             size_t end = str.find(']', start);
-            if(start == string::npos || end == string::npos){
+            bool isBB = start != string::npos && end != string::npos;
+            if(!isBB){
                 continue;
             }
+            calcedNumOfBB++;
             string moduleStr = str.substr(start, end-start);
             int module = stoul(moduleStr, nullptr, 10);
 
@@ -194,7 +197,8 @@ vector<basic_block> calcBasicBlocks(ifstream& fs, int selectedMod){ string str =
             }
         }
     }
-    cout << "BB Total: " <<  numOfBB  << "\n";
+    cout << "BB Total calced: " <<  calcedNumOfBB  << "\n";
+    cout << "BB Total written: " <<  numOfBB  << "\n";
     cout << "Chosen BB: " << numOfChosenBB << "\n";
     cout << "Chosen unique BB: "  <<v.size() << "\n";
     return v;
@@ -231,9 +235,11 @@ bool isProcNamed(string pidStr, string name){
     }
     
     ifstream fs(path.append("/status"));
+    //cout << "Debug: " << path << "\n";
 
     string line;
     getline(fs,line);
+    //cout << "Debug: " << line << "\n";
     if(line.find(name) != std::string::npos){
         return 1;
     }else{
@@ -248,24 +254,40 @@ bool isProcNamed(int pid, string name){ return isProcNamed(to_string(pid), name)
  * it is the guessed PID but there is no way to be sure
  * Retries the guess a number of times with delays between to increase probability of process in /proc
  * pidGuess: the guess for which process is the coap process*/
-int findCoapPid(int pidGuess, int guessTries = 3, int guessSleepMilli = 5){
+int findCoapPid(int pidGuess, int guessTries = 5, int guessSleepMilli = 5){
     for(int i = 0; i < guessTries; i++){
         cout << "Try" << "\n";
         mySleepMilli(guessSleepMilli);
-        if(isProcNamed(pidGuess, "coap")){
+        if(isProcNamed(pidGuess, configs.coapBinName)){
             return pidGuess;
         }
     }
 
     cout << "Process "<< pidGuess << " was not the coap process, searching through /proc/\n";
-    for(fsys::directory_entry direntry: fsys::directory_iterator("/proc/")){
-        if(!fsys::is_directory(direntry)){
-            continue;
+    int retries = 0;
+    do{
+        for(fsys::directory_entry direntry: fsys::directory_iterator("/proc/")){
+            if(!fsys::is_directory(direntry)){
+                continue;
+            }
+            //string dirname = (string)direntry.path().filename();
+            //bool numeric = 1;
+            //for(size_t i = 0; i < dirname.size(); i++){
+            //    if(dirname[i] < '0' || dirname[i] > '9'){
+            //        numeric = 0;
+            //    }
+            //}
+            //if(!numeric){
+            //    continue;
+            //}
+
+            if(isProcNamed((string)(direntry.path().filename()), configs.coapBinName)){
+                return stol((string)(direntry.path().filename()));
+            }
         }
-        if(isProcNamed((string)(direntry.path().filename()), "coap")){
-            return stol((string)(direntry.path().filename()));
-        }
-    }
+        cout << "Could not find process named: " << configs.coapBinName << ", Retrying in 500ms\n";
+        mySleepMilli(500);
+    }while(retries++ < guessTries);
     return -1;
 }
 
@@ -274,7 +296,7 @@ int findCoapPid(int pidGuess, int guessTries = 3, int guessSleepMilli = 5){
 int runDynamorio(){
     string exe, logDir, dumpOpt;
     if(configs.ready){
-        exe = configs.coapPath;
+        exe = configs.coapExeCmd;
         logDir = configs.logDir;
         dumpOpt = configs.dumpOpt;
     }else{
@@ -339,7 +361,7 @@ string calcLogPath(int coapPid){
             return path;
         }
         redundancy++;
-    }while(redundancy < 10000); //4 digit redundancy available
+    }while(redundancy < 100000); //4 digit redundancy available
 
     cout << "Unable to locate the intended log file for Dynamorio.\nReading: " << path << "\n"; 
     return path;

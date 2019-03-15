@@ -1,4 +1,4 @@
-coappath=../servers/microcoap/coap
-logdir=../servers/coveragelogs
+coapexecmd=/bin/bash ../servers/libnyoci/src/examples/example-1
+logdir=/tmp/libnyoci/
 dumpopt=-dump_text
-coapbinname=coap
+coapbinname=example-1
