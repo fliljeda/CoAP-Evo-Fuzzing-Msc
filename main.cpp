@@ -305,16 +305,6 @@ int findCoapPid(int pidGuess, int guessTries = 5, int guessSleepMilli = 5){
             if(!fsys::is_directory(direntry)){
                 continue;
             }
-            //string dirname = (string)direntry.path().filename();
-            //bool numeric = 1;
-            //for(size_t i = 0; i < dirname.size(); i++){
-            //    if(dirname[i] < '0' || dirname[i] > '9'){
-            //        numeric = 0;
-            //    }
-            //}
-            //if(!numeric){
-            //    continue;
-            //}
 
             if(isProcNamed((string)(direntry.path().filename()), configs.coapBinName)){
                 return stol((string)(direntry.path().filename()));
@@ -357,7 +347,7 @@ int runDynamorio(){
     int coapPid = findCoapPid(pid+1);
     cout << "Coap PID: " << coapPid << "\n";
 
-    return pid+1;
+    return coapPid;
 }
 
 /* Kills the process and collects the zombie */
