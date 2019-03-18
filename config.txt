@@ -1,4 +1,4 @@
-coapexecmd=/bin/bash ../servers/libnyoci/src/examples/example-1
+coapexecmd=/bin/bash ../servers/libnyoci/src/examples/example-3
 logdir=/tmp/libnyoci/
 dumpopt=-dump_text
-coapbinname=example-1
+coapbinname=example-3

@@ -36,12 +36,31 @@ string stringConcat(const vector<string>& l, string separator = ""){
     return tmp;
 }
 
+/* If dynamorio starts other processes, unnecessary log files may be created
+ * This function serves as a cleaner for the log dir.*/
+void cleanLogDir(){
+    cout << "Cleaning logdir: " << configs.logDir << " of unnecessary logfiles\n";
+    
+
+    for(fsys::directory_entry p: fsys::directory_iterator(configs.logDir)){
+        string filename = p.path().filename();
+        if(filename.find(configs.coapBinName) == std::string::npos){
+            fsys::remove(p.path());
+        }
+    }
+}
+
 /* Checks the log directory if there is a directory in it for today's log
  * If so: append that directory to the logdir path
  * If not: create the directory and append it to path*/
-bool setCurrentLogdir(string& logDir){
+bool setCurrentLogdir(const string& logDirConf){
+    string logDir = logDirConf;
     string dateStr = getNowDateString();
     bool dirExists = 0;
+    if(!fsys::is_directory(logDir)){
+        cout << "Could not find directory " << logDir << " to write logs in, using /tmp/" << "\n";
+        logDir = "/tmp/";
+    }
     for(fsys::directory_entry p: fsys::directory_iterator(logDir)){
         if(!fsys::is_directory(p)){
             continue;
@@ -52,7 +71,9 @@ bool setCurrentLogdir(string& logDir){
             break;
         }
     }
-    string newPath = logDir.append("/").append(dateStr).append("/");
+    string newPath = logDir[logDir.size() - 1] == '/' ?
+        logDir.append(dateStr).append("/") :
+        logDir.append("/").append(dateStr).append("/") ;
     if(!dirExists){
          int res = fsys::create_directory(newPath);
          if(!res){
@@ -102,8 +123,8 @@ void readConfig(string filePath = "./config.txt"){
 /* Sleep for @param milliseconds*/
 void mySleepMilli(long milliseconds){
     struct timespec tim1, tim2;
-    tim1.tv_sec = 0;
-    tim1.tv_nsec = ((long)milliseconds) * 1000000L;
+    tim1.tv_sec = milliseconds/1000L;
+    tim1.tv_nsec = ((long)milliseconds%1000) * 1000000L;
     
     nanosleep(&tim1, &tim2);
 
@@ -265,6 +286,8 @@ int findCoapPid(int pidGuess, int guessTries = 5, int guessSleepMilli = 5){
 
     cout << "Process "<< pidGuess << " was not the coap process, searching through /proc/\n";
     int retries = 0;
+    long sleepTimeMs = 300;
+    long backOffMs = 200;
     do{
         for(fsys::directory_entry direntry: fsys::directory_iterator("/proc/")){
             if(!fsys::is_directory(direntry)){
@@ -285,11 +308,14 @@ int findCoapPid(int pidGuess, int guessTries = 5, int guessSleepMilli = 5){
                 return stol((string)(direntry.path().filename()));
             }
         }
-        cout << "Could not find process named: " << configs.coapBinName << ", Retrying in 500ms\n";
-        mySleepMilli(500);
+
+        cout << "Could not find process named: " << configs.coapBinName << ", Retrying in "<< sleepTimeMs <<"ms\n";
+        mySleepMilli(sleepTimeMs);
+        sleepTimeMs += backOffMs;
     }while(retries++ < guessTries);
     return -1;
 }
+
 
 /* Forks a child process that starts the CoAP binary using dynamorio  
  * Returns the pid of the coap server*/
@@ -349,19 +375,19 @@ string calcLogPath(int coapPid){
     string path, fileName;
     do{
         ////Follows structure: <tool (drcov)>.<binary (coap)>.<pid (5 digits)>.<redundancy (4 digits)>.proc.log
-        fileName = stringConcat({"drcov", "coap", coapPidStr, getStringZeroInit(redundancy,4), "proc", "log"}, ".");
+        fileName = stringConcat({"drcov", configs.coapBinName, coapPidStr, getStringZeroInit(redundancy,4), "proc", "log"}, ".");
         path = stringConcat({configs.logDir, fileName});
 
         if(!fsys::exists(path)){
             //If the path does not exist, it means that the previous redundancy value is the latest
             //created by Dynamorio, and is thus the current log
             redundancy--;
-            fileName = stringConcat({"drcov", "coap", coapPidStr, getStringZeroInit(redundancy,4), "proc", "log"}, ".");
+            fileName = stringConcat({"drcov", configs.coapBinName, coapPidStr, getStringZeroInit(redundancy,4), "proc", "log"}, ".");
             path = stringConcat({configs.logDir, fileName});
             return path;
         }
         redundancy++;
-    }while(redundancy < 100000); //4 digit redundancy available
+    }while(redundancy < 10000); //4 digit redundancy available
 
     cout << "Unable to locate the intended log file for Dynamorio.\nReading: " << path << "\n"; 
     return path;
@@ -402,6 +428,7 @@ int main(int argc, char *argv[]){
     mySleepMilli(sleepTime);
 
     calcFitness(coapPid);
+    cleanLogDir();
 
     return 0;
 }
