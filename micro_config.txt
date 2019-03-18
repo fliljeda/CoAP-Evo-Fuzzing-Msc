@@ -2,3 +2,4 @@ coapexecmd=../servers/microcoap/coap
 logdir=../servers/coveragelogs
 dumpopt=-dump_text
 coapbinname=coap
+modulestr=microcoap

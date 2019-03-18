@@ -1,0 +1,5 @@
+coapexecmd=/bin/bash ../servers/libnyoci/src/examples/example-3
+logdir=/tmp/libnyoci/
+dumpopt=-dump_text
+coapbinname=example-3
+modulestr=libnyoci

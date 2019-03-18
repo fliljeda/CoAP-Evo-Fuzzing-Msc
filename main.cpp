@@ -15,6 +15,7 @@ struct configuration{
     string logDir;
     string dumpOpt;
     string coapBinName;
+    string moduleStr;
 } configs;
 
 /* Returns a Y-m-d string of now */
@@ -115,6 +116,8 @@ void readConfig(string filePath = "./config.txt"){
             configs.dumpOpt = value;
         }else if(option.compare("coapbinname") == 0){
             configs.coapBinName = value;
+        }else if(option.compare("modulestr") == 0){
+            configs.moduleStr = value;
         }
     }
     configs.ready = 1;
@@ -151,12 +154,14 @@ bool addBB(size_t num, vector<basic_block>& v){
     return 1;
 }
 
+
 /*Find module ID of the targetted application
  *Searches the table for lines that contain the name 
  * Returns the module ID or -1 if it can't be found  */
-int findMod(ifstream &fs, string binName){
+vector<int> findMod(ifstream &fs, string moduleStr){
     string str;
     int count;
+    vector<int> modules;
     while(getline(fs,str)){
         if(str.rfind("Module Table: ", 0)==0){
             regex rgx("count (\\d+)");
@@ -170,19 +175,23 @@ int findMod(ifstream &fs, string binName){
 
     for(int i = 0; i < count; i++){
         getline(fs,str);
-        if(str.rfind(binName) != string::npos){
+        if(str.find(moduleStr) != string::npos){
             int start = str.find(',')+1;
             int end = str.find(',', start);
             string modField = str.substr(start, end-start);
             int modId = stoul(modField, nullptr, 10);
-            return modId;
+            if(std::find(modules.begin(), modules.end(), modId) == modules.end()){
+                   modules.push_back(modId);
+                   cout << "modId: " << modId << "\n";
+            }
         }
     }
-    return -1;
+    return modules;
 }
 
 //Parses the BB lines of the file. Adding unique BB as elements of the returned vector
-vector<basic_block> calcBasicBlocks(ifstream& fs, int selectedMod){ string str = "";
+vector<basic_block> calcBasicBlocks(ifstream& fs, vector<int> selectedMods){ 
+    string str = "";
     int numOfChosenBB = 0;
     int calcedNumOfBB = 0;
     int numOfBB = 0;
@@ -209,7 +218,8 @@ vector<basic_block> calcBasicBlocks(ifstream& fs, int selectedMod){ string str =
             string moduleStr = str.substr(start, end-start);
             int module = stoul(moduleStr, nullptr, 10);
 
-            if(module == selectedMod || selectedMod == -1){
+            if(find(selectedMods.begin(), selectedMods.end(), module) != selectedMods.end() 
+                    || selectedMods.empty() ){
                 numOfChosenBB++;
                 string sub = str.substr(13,18); //Fixed length 
                 size_t num = stoul(sub, nullptr, 16);
@@ -225,23 +235,25 @@ vector<basic_block> calcBasicBlocks(ifstream& fs, int selectedMod){ string str =
     return v;
 }
 
-vector<basic_block> parseDrcov(string pathToFile, string binName){
+/* Parses a coverage file created with dynamorio 
+ * param pathToFile is the relative 
+ * param moduleStr is the keyword to look for in the files to determine what modules to include*/
+vector<basic_block> parseDrcov(string pathToFile, string moduleStr){
 
     ifstream fs(pathToFile);
 
     //If we only want to parse from a selected mod§
-    bool isModSelected = binName.empty() ? 0 : 1; 
-    int selectedMod;
+    bool isModSelected = moduleStr.empty() ? 0 : 1; 
+    vector<int> selectedMods;
     if(isModSelected){
-        selectedMod = findMod(fs, binName);
-        if(selectedMod == -1){
-            cout << "COULD NOT FIND THE MODULE CONTAINING: " << binName << "\n";
-            cout << "CONTINUING CALCULATING ALL: " << binName << "\n";
+        selectedMods = findMod(fs, moduleStr);
+        if(selectedMods.empty()){
+            cout << "COULD NOT FIND THE MODULE CONTAINING: " << moduleStr << "\n";
+            cout << "CONTINUING CALCULATING ALL: " << moduleStr << "\n";
         }
-        cout << selectedMod << "\n";
     }
 
-    vector<basic_block> uniqueBlocks = calcBasicBlocks(fs,selectedMod);
+    vector<basic_block> uniqueBlocks = calcBasicBlocks(fs,selectedMods);
     return uniqueBlocks;
 }
 
@@ -320,15 +332,17 @@ int findCoapPid(int pidGuess, int guessTries = 5, int guessSleepMilli = 5){
 /* Forks a child process that starts the CoAP binary using dynamorio  
  * Returns the pid of the coap server*/
 int runDynamorio(){
-    string exe, logDir, dumpOpt;
+    string exe, logDir, dumpOpt, moduleStr;
     if(configs.ready){
         exe = configs.coapExeCmd;
         logDir = configs.logDir;
         dumpOpt = configs.dumpOpt;
+        moduleStr = configs.moduleStr;
     }else{
         exe = "../servers/microcoap/coap";
         logDir = "../servers/coveragelogs";
         dumpOpt = "-dump_text";
+        moduleStr = "microcoap";
     }
     string command = "../dynamorio/build/bin64/drrun -t drcov -logdir ";
     command.append(logDir).append(" ").append(dumpOpt).append(" -- ").append(exe);
@@ -396,23 +410,27 @@ string calcLogPath(int coapPid){
 void calcFitness(int coapPid){
     string path = calcLogPath(coapPid);
 
-    string binName;
+    string moduleStr;
     if(!configs.ready){
         cout << "Config was not ready. Verify that the config file exist and has the proper format. Exiting \n";
         exit(0);
     }else{
-        binName = configs.coapBinName;
+        moduleStr = configs.moduleStr;
     }
 
     cout << path << "\n";
-    parseDrcov(path, binName);
+    parseDrcov(path, moduleStr);
 
 }
 
 
 int main(int argc, char *argv[]){
-
-    readConfig();
+    
+    if(argc == 2){
+        readConfig(argv[1]);
+    }else{
+        readConfig();
+    }
 
     int coapPid = runDynamorio();
     if(coapPid < 0){
