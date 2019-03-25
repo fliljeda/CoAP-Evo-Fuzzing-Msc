@@ -1,9 +1,10 @@
 CC=g++
 FLAGS=-std=c++17 -Wall -lstdc++fs
+SRCS=main.cpp network.cpp
 
 all: main.o
 
-main.o: main.cpp
+main.o: $(SRCS)
 	$(CC) main.cpp -o main.o $(FLAGS) 
 
 silent: main.cpp

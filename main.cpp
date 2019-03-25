@@ -5,6 +5,10 @@
 #include <regex>
 #include <sys/wait.h>
 #include <experimental/filesystem>
+#include <vector>
+#include "network.cpp"
+
+
 
 using namespace std;
 namespace fsys = std::experimental::filesystem;
@@ -41,7 +45,6 @@ string stringConcat(const vector<string>& l, string separator = ""){
  * This function serves as a cleaner for the log dir.*/
 void cleanLogDir(){
     cout << "Cleaning logdir: " << configs.logDir << " of unnecessary logfiles\n";
-    
 
     for(fsys::directory_entry p: fsys::directory_iterator(configs.logDir)){
         string filename = p.path().filename();
@@ -50,6 +53,8 @@ void cleanLogDir(){
         }
     }
 }
+
+
 
 /* Checks the log directory if there is a directory in it for today's log
  * If so: append that directory to the logdir path
@@ -268,11 +273,9 @@ bool isProcNamed(string pidStr, string name){
     }
     
     ifstream fs(path.append("/status"));
-    //cout << "Debug: " << path << "\n";
 
     string line;
     getline(fs,line);
-    //cout << "Debug: " << line << "\n";
     if(line.find(name) != std::string::npos){
         return 1;
     }else{
@@ -413,6 +416,24 @@ void calcFitness(int coapPid){
 
 }
 
+/* Placeholder function that is used to send network packets according to input */
+void waitForPackets(){
+    string tmp;
+    cout << "Waiting with CoAP running. Enter any character to kill CoAP and retrieve fitness: \n";
+    cout << "> ";
+    while(cin >> tmp && tmp.compare("done") != 0){
+        if(tmp.compare("1") == 0){
+            vector<std::byte> vec;
+            for(int i = 0; i < 64; i++){
+                vec.push_back((std::byte)0x41);
+            }
+            netw::sendUDP("localhost", vec);
+        }else if(tmp.compare("2") == 0){
+        }else{
+        }
+        cout << "> ";
+    }
+}
 
 int main(int argc, char *argv[]){
     
@@ -426,9 +447,8 @@ int main(int argc, char *argv[]){
     if(coapPid < 0){
         cout << "Could not run dynamorio properly\n";
     }
-    string tmp;
-    cout << "Waiting with CoAP running. Enter any character to kill CoAP and retrieve fitness: ";
-    cin >> tmp;
+
+    waitForPackets();
     killProc(coapPid);
 
     int sleepTime = 500;
