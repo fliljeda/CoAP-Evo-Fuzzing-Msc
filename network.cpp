@@ -21,11 +21,45 @@ void diep(std::string s){
     exit(1);
 }
 
-void* getRawFromVec(std::vector<std::byte> vec){
-    return 0;
+
+template<typename T>
+struct coap_header_field{
+    int assertion = T();
+    int length;
+    T val;
+};
+
+struct coap_socket{
+    int socket;
+    sockaddr_in si_other;
+    int slen;
+};
+
+void closeSocket(coap_socket s){
+    close(s.socket);
 }
 
-int sendUDP(std::string host, std::vector<std::byte> data){
+
+//Receive from socket
+void recUDP(coap_socket& s, int timeout_sec = 0, long timeout_usec = 0){
+
+    //Set timeout
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0L;
+    setsockopt(s.socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    char buf[BUFLEN];
+
+    if (recvfrom(s.socket, buf, BUFLEN, 0, (sockaddr*)&(s.si_other), (socklen_t*)&(s.slen))==-1)
+        diep("recvfrom()");
+    printf("Received packet from %s:%d\nData: %s\n\n",
+        inet_ntoa(s.si_other.sin_addr), ntohs(s.si_other.sin_port), buf);
+
+}
+
+/* Creates a socket to send coap packets over
+ * with the given address */
+coap_socket getCoapSocket(std::string host){
     struct sockaddr_in si_other;
     int s, slen=sizeof(si_other);
     
@@ -39,18 +73,18 @@ int sendUDP(std::string host, std::vector<std::byte> data){
       fprintf(stderr, "inet_aton() failed\n");
       exit(1);
     }
-    
-    if (sendto(s, &data[0], data.size(), 0, (sockaddr*)&si_other, slen)==-1)
+
+    coap_socket sock = {s, si_other, slen};
+    return sock;
+}
+
+
+/* Send the given param2 data over the param1 given socket */
+coap_socket sendUDP(coap_socket& s, const std::vector<std::byte>& data){
+    if (sendto(s.socket, &data[0], data.size(), 0, (sockaddr*)&(s.si_other), s.slen)==-1)
         diep("sendto()");
 
-    char buf[BUFLEN];
-    if (recvfrom(s, buf, BUFLEN, 0, (sockaddr*)&si_other, (socklen_t*)&slen)==-1)
-        diep("recvfrom()");
-    printf("Received packet from %s:%d\nData: %s\n\n",
-        inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
-
-    close(s);
-    return 0;
+    return s;
 }
 
 
