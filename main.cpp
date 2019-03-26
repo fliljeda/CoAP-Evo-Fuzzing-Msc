@@ -129,7 +129,7 @@ void readConfig(string filePath = "./config.txt"){
 }
 
 /* Sleep for @param milliseconds*/
-void mySleepMilli(long milliseconds){
+void sleepMs(long milliseconds){
     struct timespec tim1, tim2;
     tim1.tv_sec = milliseconds/1000L;
     tim1.tv_nsec = ((long)milliseconds%1000) * 1000000L;
@@ -290,12 +290,14 @@ bool isProcNamed(int pid, string name){ return isProcNamed(to_string(pid), name)
  * it is the guessed PID but there is no way to be sure
  * Retries the guess a number of times with delays between to increase probability of process in /proc
  * pidGuess: the guess for which process is the coap process*/
-int findCoapPid(int pidGuess, int guessTries = 5, int guessSleepMilli = 5){
-    for(int i = 0; i < guessTries; i++){
-        cout << "Try" << "\n";
-        mySleepMilli(guessSleepMilli);
-        if(isProcNamed(pidGuess, configs.coapBinName)){
-            return pidGuess;
+int findCoapPid(string binName, int pidGuess, int guessTries = 5, int guessSleepMilli = 5){
+    if(pidGuess > 0){
+        for(int i = 0; i < guessTries; i++){
+            cout << "Try" << "\n";
+            sleepMs(guessSleepMilli);
+            if(isProcNamed(pidGuess, binName)){
+                return pidGuess;
+            }
         }
     }
 
@@ -309,13 +311,13 @@ int findCoapPid(int pidGuess, int guessTries = 5, int guessSleepMilli = 5){
                 continue;
             }
 
-            if(isProcNamed((string)(direntry.path().filename()), configs.coapBinName)){
+            if(isProcNamed((string)(direntry.path().filename()), binName)){
                 return stol((string)(direntry.path().filename()));
             }
         }
 
-        cout << "Could not find process named: " << configs.coapBinName << ", Retrying in "<< sleepTimeMs <<"ms\n";
-        mySleepMilli(sleepTimeMs);
+        cout << "Could not find process named: " << binName << ", Retrying in "<< sleepTimeMs <<"ms\n";
+        sleepMs(sleepTimeMs);
         sleepTimeMs += backOffMs;
     }while(retries++ < guessTries);
     return -1;
@@ -347,7 +349,7 @@ int runDynamorio(){
         cout << "I am parent, child is: " << pid+1 << "\n";
     }
 
-    int coapPid = findCoapPid(pid+1);
+    int coapPid = findCoapPid(configs.coapBinName,pid+1);
     cout << "Coap PID: " << coapPid << "\n";
 
     return coapPid;
@@ -356,7 +358,9 @@ int runDynamorio(){
 /* Kills the process and collects the zombie */
 int killProc(int procId){
     kill(procId, SIGTERM);
+    sleepMs(100);
     waitpid(procId, 0, WNOHANG);
+    waitpid(0, 0, WNOHANG);
     cout << "Killed process: " << procId << "\n";
     return 0;
 }
@@ -428,7 +432,7 @@ void waitForPackets(){
             netw::coap_socket s = netw::getCoapSocket("127.0.0.1");
             s.sendUDP(vec);
             s.sendUDP(vec);
-            s.recUDP();
+            s.recUDP(1);
             s.close_socket();
         }else if(tmp.compare("2") == 0){
         }else{
@@ -455,11 +459,12 @@ int main(int argc, char *argv[]){
 
     int sleepTime = 500;
     cout << "Sleeping " << sleepTime << " milliseconds to allow dynamorio to write results\n";
-    mySleepMilli(sleepTime);
+    sleepMs(sleepTime);
 
     calcFitness(coapPid);
     cleanLogDir();
 
+    while(1);
     return 0;
 }
 
