@@ -22,12 +22,6 @@ void diep(std::string s){
 }
 
 
-template<typename T>
-struct coap_header_field{
-    int assertion = T();
-    int length;
-    T val;
-};
 
 struct coap_socket{
 
@@ -40,12 +34,13 @@ struct coap_socket{
     }
 
     //Receive from socket
-    void recUDP(int timeout_sec = 0, long timeout_usec = 0){
+    /*  TODO Return something to identify crashes and whatnot  */
+    void recUDP(int timeout_sec = 0, long timeout_usec = 0L){
 
         //Set timeout
         struct timeval tv;
-        tv.tv_sec = 1;
-        tv.tv_usec = 0L;
+        tv.tv_sec = timeout_sec;
+        tv.tv_usec = timeout_usec;
         setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         char buf[BUFLEN];
 
