@@ -426,9 +426,10 @@ void waitForPackets(){
             vector<std::byte> vec = 
             {(std::byte)0x40, (std::byte)0x01, (std::byte)0x73, (std::byte)0x6A, (std::byte)0x39, (std::byte)0x6C, (std::byte)0x6F, (std::byte)0x63, (std::byte)0x61, (std::byte)0x6C, (std::byte)0x68, (std::byte)0x6F, (std::byte)0x73, (std::byte)0x74, (std::byte)0x8B, (std::byte)0x2E, (std::byte)0x77, (std::byte)0x65, (std::byte)0x6C, (std::byte)0x6C, (std::byte)0x2D, (std::byte)0x6B, (std::byte)0x6E, (std::byte)0x6F, (std::byte)0x77, (std::byte)0x6E, (std::byte)0x04, (std::byte)0x63, (std::byte)0x6F, (std::byte)0x72, (std::byte)0x65};
             netw::coap_socket s = netw::getCoapSocket("127.0.0.1");
-            netw::sendUDP(s, vec);
-            netw::recUDP(s);
-            netw::closeSocket(s);
+            s.sendUDP(vec);
+            s.sendUDP(vec);
+            s.recUDP();
+            s.close_socket();
         }else if(tmp.compare("2") == 0){
         }else{
         }
