@@ -443,12 +443,21 @@ void waitForPackets(){
     }
 }
 
+void sendPacket(std::vector<std::byte> vec){
+    netw::coap_socket s = netw::getCoapSocket("127.0.0.1");
+    s.sendUDP(vec);
+    s.recUDP(1);
+    s.close_socket();
+}
+
 
 vector<std::byte> generateWKCorePacket(){
     vector<std::byte> vec;
     /*
     0x40 0x01 0x73 0x6A 0x39 0x6C 0x6F 0x63 0x61 0x6C 0x68 0x6F 0x73 0x74 0x8B 0x2E 0x77 0x65 0x6C 0x6C 
         0x2D 0x6B 0x6E 0x6F 0x77 0x6E 0x04 0x63 0x6F 0x72 0x65;
+    40 01 73 6A 39 6C 6F 63 61 6C 68 6F 73 74 8B 2E 77 65 6C 6C 
+        2D 6B 6E 6F 77 6E 04 63 6F 72 65;
     */
     coap_packet packet;
     packet.version.setVals(1,2);
@@ -460,7 +469,7 @@ vector<std::byte> generateWKCorePacket(){
 
 
     //Token
-    packet.token.setVals(0,64);
+    packet.token.setVals(0,0);
 
     //Option 1
     coap_option uri_host;
@@ -505,7 +514,6 @@ int main(int argc, char *argv[]){
         printf("%02X ", (unsigned int)packet[i]);
     }
     printf("\n");
-    return 0;
     
     if(argc == 2){
         readConfig(argv[1]);
@@ -517,8 +525,10 @@ int main(int argc, char *argv[]){
     if(coapPid < 0){
         cout << "Could not run dynamorio properly\n";
     }
-
-    waitForPackets();
+    sleepMs(1000);
+    sendPacket(packet);
+    sleepMs(1000);
+    
     killProc(coapPid);
 
     int sleepTime = 500;
@@ -528,7 +538,6 @@ int main(int argc, char *argv[]){
     calcFitness(coapPid);
     cleanLogDir();
 
-    while(1);
     return 0;
 }
 
