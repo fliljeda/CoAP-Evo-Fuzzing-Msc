@@ -450,6 +450,52 @@ void sendPacket(std::vector<std::byte> vec){
     s.close_socket();
 }
 
+vector<std::byte> generateLightPacket(){
+    vector<std::byte> vec;
+    /*
+    0x40 0x01 0x73 0x6A 0x39 0x6C 0x6F 0x63 0x61 0x6C 0x68 0x6F 0x73 0x74 0x8B 0x2E 0x77 0x65 0x6C 0x6C 
+        0x2D 0x6B 0x6E 0x6F 0x77 0x6E 0x04 0x63 0x6F 0x72 0x65;
+    40 01 73 6A 39 6C 6F 63 61 6C 68 6F 73 74 8B 2E 77 65 6C 6C 
+        2D 6B 6E 6F 77 6E 04 63 6F 72 65;
+    */
+    coap_packet packet;
+    packet.version.setVals(1,2);
+    packet.type.setVals(0,2);
+    packet.token_length.setVals(0,4);
+    packet.code_class.setVals(0,3);
+    packet.code_detail.setVals(1,5);
+    packet.msg_id.setVals(0x736A,16);
+
+
+    //Token
+    packet.token.setVals(0,0);
+
+    //Option 1
+    coap_option uri_host;
+    uri_host.number.setVals(3,4);
+    uri_host.length.setVals(9,4);
+    uri_host.type = coap_option::Type::string;
+    string uri_host_str = "localhost";
+    uri_host.value = new vector<char>(uri_host_str.begin(), uri_host_str.end());
+    vector<char> v = uri_host.getVal<vector<char>>();
+    packet.options.push_back(uri_host);
+    
+    //Option 2
+    coap_option uri_path1;
+    uri_path1.number.setVals(0x0B,4);
+    uri_path1.length.setVals(5,4);
+    uri_path1.type = coap_option::Type::string;
+    string uri_path1_str = "light";
+    uri_path1.value = new vector<char>(uri_path1_str.begin(), uri_path1_str.end());
+    v = uri_path1.getVal<vector<char>>();
+    packet.options.push_back(uri_path1);
+
+
+    packet.payload = nullptr;
+
+    vec = packPacket(packet);
+    return vec;
+}
 
 vector<std::byte> generateWKCorePacket(){
     vector<std::byte> vec;
@@ -509,7 +555,8 @@ vector<std::byte> generateWKCorePacket(){
 
 int main(int argc, char *argv[]){
 
-    vector<std::byte> packet = generateWKCorePacket();
+    //vector<std::byte> packet = generateWKCorePacket();
+    vector<std::byte> packet = generateLightPacket();
     for(size_t i = 0; i < packet.size(); i++){
         printf("%02X ", (unsigned int)packet[i]);
     }
