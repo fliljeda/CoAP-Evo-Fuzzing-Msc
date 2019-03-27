@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <experimental/filesystem>
 #include <vector>
+#include <cstddef>
 #include "network.cpp"
 #include "coap.cpp"
 
@@ -442,6 +443,7 @@ void waitForPackets(){
     }
 }
 
+
 vector<std::byte> generateWKCorePacket(){
     vector<std::byte> vec;
     /*
@@ -454,13 +456,13 @@ vector<std::byte> generateWKCorePacket(){
     packet.token_length.setVals(0,4);
     packet.code_class.setVals(0,3);
     packet.code_detail.setVals(1,5);
-    packet.code_detail.setVals(0x736A,16);
+    packet.msg_id.setVals(0x736A,16);
 
 
     //Token
     packet.token.setVals(0,64);
 
-    //Option
+    //Option 1
     coap_option uri_host;
     uri_host.number.setVals(3,4);
     uri_host.length.setVals(9,4);
@@ -470,6 +472,7 @@ vector<std::byte> generateWKCorePacket(){
     vector<char> v = uri_host.getVal<vector<char>>();
     packet.options.push_back(uri_host);
     
+    //Option 2
     coap_option uri_path1;
     uri_path1.number.setVals(0x0B,4);
     uri_path1.length.setVals(11,4);
@@ -479,6 +482,7 @@ vector<std::byte> generateWKCorePacket(){
     v = uri_path1.getVal<vector<char>>();
     packet.options.push_back(uri_path1);
 
+    //Option 3
     coap_option uri_path2;
     uri_path2.number.setVals(0x0B,4);
     uri_path2.length.setVals(4,4);
@@ -490,13 +494,15 @@ vector<std::byte> generateWKCorePacket(){
 
     packet.payload = nullptr;
 
+    vec = packPacket(packet);
     return vec;
 }
 
 int main(int argc, char *argv[]){
+
     vector<std::byte> packet = generateWKCorePacket();
     for(size_t i = 0; i < packet.size(); i++){
-        printf("%X ", (unsigned int)packet[i]);
+        printf("%02X ", (unsigned int)packet[i]);
     }
     printf("\n");
     return 0;

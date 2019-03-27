@@ -1,6 +1,6 @@
 CC=g++
 FLAGS=-std=c++17 -Wall -lstdc++fs
-SRCS=main.cpp network.cpp
+SRCS=main.cpp network.cpp coap.cpp
 
 all: main.o
 
