@@ -520,39 +520,43 @@ vector<std::byte> generateWKCorePacket(){
     uri_host.type = coap_option::Type::string;
     string uri_host_str = "localhost";
     uri_host.value = new vector<char>(uri_host_str.begin(), uri_host_str.end());
-    vector<char> v = uri_host.getVal<vector<char>>();
     packet.options.push_back(uri_host);
-    
-    //Option 2
-    coap_option uri_path1;
-    uri_path1.number.setVals(0x0B,4);
-    uri_path1.length.setVals(11,4);
-    uri_path1.type = coap_option::Type::string;
-    string uri_path1_str = ".well-known";
-    uri_path1.value = new vector<char>(uri_path1_str.begin(), uri_path1_str.end());
-    v = uri_path1.getVal<vector<char>>();
-    packet.options.push_back(uri_path1);
 
     //Option 3
-    coap_option uri_path2;
-    uri_path2.number.setVals(0x0B,4);
-    uri_path2.length.setVals(4,4);
-    uri_path2.type = coap_option::Type::string;
-    string uri_path2_str = "core";
-    uri_path2.value = new vector<char>(uri_path2_str.begin(), uri_path2_str.end());
-    v = uri_path2.getVal<vector<char>>();
-    packet.options.push_back(uri_path2);
-
+    coap_option uri_path3;
+    uri_path3.number.setVals(0x0B,4);
+    uri_path3.length.setVals(11,4);
+    uri_path3.type = coap_option::Type::string;
+    string uri_path3_str = ".well-known";
+    uri_path3.value = new vector<char>(uri_path3_str.begin(), uri_path3_str.end());
+    packet.options.push_back(uri_path3);
     packet.payload = nullptr;
+
+    //Option 3
+    coap_option uri_path4;
+    uri_path4.number.setVals(0x0B,4);
+    uri_path4.length.setVals(4,4);
+    uri_path4.type = coap_option::Type::string;
+    string uri_path4_str = "core";
+    uri_path4.value = new vector<char>(uri_path4_str.begin(), uri_path4_str.end());
+    packet.options.push_back(uri_path4);
+    packet.payload = nullptr;
+
 
     vec = packPacket(packet);
     return vec;
 }
 
-int main(int argc, char *argv[]){
+int test(){
+    readPacketFile("./seed.txt");
+    return 1;
+}
 
-    //vector<std::byte> packet = generateWKCorePacket();
-    vector<std::byte> packet = generateLightPacket();
+int main(int argc, char *argv[]){
+    if(test()) return 0;
+
+    vector<std::byte> packet = generateWKCorePacket();
+    //vector<std::byte> packet = generateLightPacket();
     for(size_t i = 0; i < packet.size(); i++){
         printf("%02X ", (unsigned int)packet[i]);
     }
