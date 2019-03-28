@@ -292,21 +292,12 @@ bool isProcNamed(int pid, string name){ return isProcNamed(to_string(pid), name)
  * it is the guessed PID but there is no way to be sure
  * Retries the guess a number of times with delays between to increase probability of process in /proc
  * pidGuess: the guess for which process is the coap process*/
-int findCoapPid(string binName, int pidGuess, int guessTries = 5, int guessSleepMilli = 5){
-    if(pidGuess > 0){
-        for(int i = 0; i < guessTries; i++){
-            cout << "Try" << "\n";
-            sleepMs(guessSleepMilli);
-            if(isProcNamed(pidGuess, binName)){
-                return pidGuess;
-            }
-        }
-    }
-
-    cout << "Process "<< pidGuess << " was not the coap process, searching through /proc/\n";
+int findCoapPid(string binName, int maxTries = 6){
+    cout << "Trying to find Coap binary, searching through /proc/\n";
     int retries = 0;
-    long sleepTimeMs = 300;
-    long backOffMs = 200;
+    long sleepTimeMs = 100;
+    long backOffMs = 100;
+    auto start = chrono::system_clock::now();
     do{
         for(fsys::directory_entry direntry: fsys::directory_iterator("/proc/")){
             if(!fsys::is_directory(direntry)){
@@ -314,6 +305,9 @@ int findCoapPid(string binName, int pidGuess, int guessTries = 5, int guessSleep
             }
 
             if(isProcNamed((string)(direntry.path().filename()), binName)){
+                auto end = chrono::system_clock::now();
+                chrono::duration<double> d = end-start;
+                cout << "Elapsed time: " << d.count()<< "\n";
                 return stol((string)(direntry.path().filename()));
             }
         }
@@ -321,7 +315,7 @@ int findCoapPid(string binName, int pidGuess, int guessTries = 5, int guessSleep
         cout << "Could not find process named: " << binName << ", Retrying in "<< sleepTimeMs <<"ms\n";
         sleepMs(sleepTimeMs);
         sleepTimeMs += backOffMs;
-    }while(retries++ < guessTries);
+    }while(retries++ < maxTries);
     return -1;
 }
 
@@ -351,9 +345,11 @@ int runDynamorio(){
         cout << "I am parent, child is: " << pid+1 << "\n";
     }
 
-    int coapPid = findCoapPid(configs.coapBinName,pid+1);
-    cout << "Coap PID: " << coapPid << "\n";
-
+    int coapPid = findCoapPid(configs.coapBinName);
+    
+    int startup_sleep = 500;
+    cout << "Waiting " << startup_sleep << "ms for server to start\n";
+    sleepMs(startup_sleep);
     return coapPid;
 }
 
@@ -572,9 +568,7 @@ int main(int argc, char *argv[]){
     if(coapPid < 0){
         cout << "Could not run dynamorio properly\n";
     }
-    sleepMs(1000);
     sendPacket(packet);
-    sleepMs(1000);
     
     killProc(coapPid);
 
