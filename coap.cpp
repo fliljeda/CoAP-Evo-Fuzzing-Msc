@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 
+std::vector<std::byte> strToByteVec(std::string& str);
 
 template<typename T>
 struct coap_field{
@@ -24,26 +25,24 @@ struct coap_option{
     coap_field<int> optional_delta{0,0};
     enum Type {empty, opaque, uint, string};
     Type type;
-    void* value;
+    std::vector<std::byte> value;
 
-    template<typename T>
-    T& getVal() const{
-        return *(T*)(value);
+    std::vector<std::byte>& getValue(){
+        return value;
     }
 
-    ~coap_option(){
-        if(value == nullptr){
-            return;
+    void setValue(unsigned int val, int bytes){
+        std::vector<std::byte> vec;
+        for(int i = 0; i < bytes; i++){
+            unsigned int temp = (val >> (bytes-1-i)*8) & 255;
+            vec.push_back(std::byte(temp));
         }
-        if(type == Type::empty){
-        }else if(type == Type::opaque){
-            delete((std::vector<std::byte>*) value);
-        }else if(type == Type::uint){
-            delete((unsigned int*) value);
-        }else if(type == Type::string){
-            delete((std::vector<char>*) value);
-        }
+        value = vec;
     }
+    void setValue(std::string val){
+        value = strToByteVec(val);
+    }
+
 };
 
 struct coap_packet{
@@ -67,6 +66,14 @@ struct coap_packet{
     std::vector<std::byte> payload ;
 
 };
+std::vector<std::byte> strToByteVec(std::string& str){
+    std::vector<std::byte> vec;
+    for(unsigned char c: str){
+        std::byte b{c};
+        vec.push_back(b);
+    }
+    return vec;
+}
 
 /* Write param n_bits number of bits from param value  into vec
  * at the positiion param pos. Returns the new position
@@ -105,21 +112,21 @@ int writeBits(std::vector<std::byte>& vec, T value, int pos, int n_bits){
 }
 
 template<typename T>
-int writeCoapField(std::vector<std::byte>& vec, const coap_field<T>& field, int pos){
+int writeCoapField(std::vector<std::byte>& vec, coap_field<T>& field, int pos){
     return writeBits(vec, field.value, pos, field.bits);
 }
 
 /* Writes each vector element using the allocated sizes of the elements
  * Calculates the allocated sizes with sizeof*/ 
 template<typename T>
-int writeCoapVector(std::vector<std::byte>& vec, const std::vector<T>& val, int pos){
+int writeCoapVector(std::vector<std::byte>& vec, std::vector<T>& val, int pos){
     for(size_t i = 0; i < val.size(); i++){
         pos = writeBits(vec, val[i], pos, sizeof(val[i])*8);
     }
     return pos;
 }
 
-int writeCoapOptions(std::vector<std::byte>& vec, const std::vector<coap_option>& options, int pos){
+int writeCoapOptions(std::vector<std::byte>& vec, std::vector<coap_option>& options, int pos){
     int prevOptNum = 0;
     for(size_t i = 0; i < options.size(); i++){
         int delta = options[i].number.value - prevOptNum;
@@ -150,21 +157,21 @@ int writeCoapOptions(std::vector<std::byte>& vec, const std::vector<coap_option>
 
             case coap_option::Type::opaque:{
                 //cast to vector<byte>
-                std::vector<std::byte> val = options[i].getVal<std::vector<std::byte>>();
+                std::vector<std::byte> val = options[i].getValue();
                 pos = writeCoapVector(vec, val, pos);
             }
             break;
 
             case coap_option::Type::uint:{
                 //cast to unsigned int
-                unsigned int val = options[i].getVal<unsigned int>();
-                pos = writeBits(vec, val, pos, valLength);
+                std::vector<std::byte> val = options[i].getValue();
+                pos = writeCoapVector(vec, val, pos);
             }
             break;
 
             case coap_option::Type::string:{
                 //case to string
-                std::vector<char> val = options[i].getVal<std::vector<char>>();
+                std::vector<std::byte> val = options[i].getValue();
                 pos = writeCoapVector(vec, val, pos);
             }
             break;
@@ -173,8 +180,18 @@ int writeCoapOptions(std::vector<std::byte>& vec, const std::vector<coap_option>
     return pos;
 }
 
+int writeCoapPayload(std::vector<std::byte>& vec, coap_packet& pack, int pos){
+    if(pack.payload.size() != 0){
 
-std::vector<std::byte> packPacket(const coap_packet& pac){
+        pos = writeCoapField(vec, pack.payload_marker, pos);
+        pos = writeCoapVector(vec, pack.payload, pos);
+
+    }
+    return pos;
+}
+
+
+std::vector<std::byte> packPacket(coap_packet& pac){
     std::vector<std::byte> vec;
     int pos = 0;   
     pos = writeCoapField(vec, pac.version, pos);
@@ -183,8 +200,9 @@ std::vector<std::byte> packPacket(const coap_packet& pac){
     pos = writeCoapField(vec, pac.code_class, pos);
     pos = writeCoapField(vec, pac.code_detail, pos);
     pos = writeCoapField(vec, pac.msg_id, pos);
-    pos = writeBits(vec, pac.token.value, pos, pac.token.value);
+    pos = writeBits(vec, pac.token.value, pos, pac.token.value); //Token
     pos = writeCoapOptions(vec, pac.options, pos);
+    pos = writeCoapPayload(vec, pac, pos);
     return vec;
 }
 
@@ -208,7 +226,7 @@ std::vector<std::string> strSplit(std::string str, char delim){
 
 /* Sets the coap request code to the coap packet
  * Reads normal requests in capital letters GET, POST, PUT, DELETE*/
-void setCoapCode(coap_packet& cpack, const std::string val){
+void setCoapCode(coap_packet& cpack, std::string val){
     if(val.compare("GET") == 0){
         cpack.code_class.setVals(0,3);
         cpack.code_detail.setVals(1,5);
@@ -226,8 +244,8 @@ void setCoapCode(coap_packet& cpack, const std::string val){
 
 /* Sets the coap uri to the coap packet
  * Should not be prepended or appended with any slashes */
-void setCoapUri(coap_packet& cpack, const std::string uri){
-    std::vector<std::string> comps = strSplit(uri, ':');
+void setCoapUri(coap_packet& cpack, std::string uri){
+    std::vector<std::string> comps = strSplit(uri, '/');
     for(std::string s: comps){
         coap_option opt;
         opt.number.setVals(0x0B, 4);
@@ -240,24 +258,53 @@ void setCoapUri(coap_packet& cpack, const std::string uri){
         }else{
             opt.length.setVals(s.size(), 4);
         }
-        opt.value = new std::vector<char>(s.begin(), s.end());
+        opt.value = strToByteVec(s);
         opt.type = coap_option::Type::string;
         cpack.options.push_back(opt);
     }
 }
 
+
 /* TODO if necessary add a type detector and handler  */
 void setParsedCoapPayload(coap_packet& cpack, std::string type, std::string val){
+    std::vector<std::byte> bytes = strToByteVec(val);
+    cpack.payload = bytes;
     //std::vector<char> vec = std::vector<char>(val.begin(), val.end());
+}
+void setParsedCoapPayload(coap_packet& cpack, std::string val){
+    setParsedCoapPayload(cpack, "bytes", val);
+}
+
+void setCoapDefaultVals(coap_packet& cpack){
+    cpack.version.setVals(1,2);
+    cpack.type.setVals(0,2);
+    cpack.token_length.setVals(0,4);
+    cpack.code_class.setVals(0,3);
+    cpack.code_detail.setVals(1,5);
+    cpack.msg_id.setVals(0x736A,16);
+    cpack.token.setVals(0,0);
+
+    coap_option uri_host;
+    uri_host.number.setVals(3,4);
+    uri_host.length.setVals(9,4);
+    uri_host.type = coap_option::Type::string;
+    std::string uri_host_str = "localhost";
+    uri_host.value = strToByteVec(uri_host_str);
+    cpack.options.push_back(uri_host);
 }
 
 /* Reads,parses and packages coap_packets from the text seed file
  * Assumes title line has already been read and disregarded form the stream
  * */
-coap_packet parseAndPackage(std::ifstream& fs){
+coap_packet parsePacket(std::ifstream& fs){
     std::string line;
     coap_packet cpack;
+    setCoapDefaultVals(cpack);
+
     while(getline(fs,line)){
+        if(line.compare("}") == 0){
+            break;
+        }
         std::vector<std::string> tokens = strSplit(line, ':');
         if(tokens.size() < 2){
             continue;
@@ -269,8 +316,12 @@ coap_packet parseAndPackage(std::ifstream& fs){
             setCoapCode(cpack, arg);
         }else if(id.compare("uri") == 0){
             setCoapUri(cpack, arg);
-        }else if(id.compare("val") == 0 && tokens.size() >= 3){
-            setParsedCoapPayload(cpack, arg, tokens[2]);
+        }else if(id.compare("val") == 0 ){
+            if(tokens.size() >= 3){
+                setParsedCoapPayload(cpack, arg, tokens[2]);
+            }else{
+                setParsedCoapPayload(cpack, tokens[1]);
+            }
         }else{
             std::cout << "Unrecognized packet code: " << id << " with value: " << arg << "\n";
         }
@@ -286,7 +337,8 @@ std::vector<coap_packet> readPacketFile(std::string filePath){
     while(getline(fs,line)){
         std::vector<std::string> s = strSplit(line, ':');
         if(s.size() > 1 && s[1].compare("{")==0){
-            coap_packet cpack = parseAndPackage(fs);
+            coap_packet cpack = parsePacket(fs);
+            vec.push_back(cpack);
         }
     }
     std::cout << "\n";
