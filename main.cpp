@@ -15,6 +15,7 @@
 using namespace std;
 namespace fsys = std::experimental::filesystem;
 
+
 struct configuration{
     bool ready;
     string coapExeCmd;
@@ -23,6 +24,19 @@ struct configuration{
     string coapBinName;
     string moduleStr;
 } configs;
+
+struct basic_block {
+    size_t number;
+    int occurrances = 0;
+};
+
+
+
+struct {
+    /* Used as a static pool code coverage structure. Will remain between sessions */
+    bool active = 0;
+    std::vector<basic_block> vec;
+} poolCov;
 
 /* Returns a Y-m-d string of now */
 string getNowDateString(){
@@ -141,10 +155,6 @@ void sleepMs(long milliseconds){
 }
 
 
-struct basic_block {
-    size_t number;
-    int occurrances = 0;
-};
 
 
 bool addBB(size_t num, vector<basic_block>& v){
@@ -201,7 +211,7 @@ vector<basic_block> calcBasicBlocks(ifstream& fs, vector<int> selectedMods){
     string str = "";
     int numOfChosenBB = 0;
     int calcedNumOfBB = 0;
-    int numOfBB = 0;
+    //int numOfBB = 0;
     vector<basic_block> v;
     while(getline(fs,str)){
 
@@ -209,7 +219,7 @@ vector<basic_block> calcBasicBlocks(ifstream& fs, vector<int> selectedMods){
             regex rgx("\\d+");
             smatch match;
             if(regex_search(str, match ,rgx)){
-                numOfBB = stoul(match[0], nullptr, 10);
+                //numOfBB = stoul(match[0], nullptr, 10);
             }
 
         }
@@ -232,20 +242,19 @@ vector<basic_block> calcBasicBlocks(ifstream& fs, vector<int> selectedMods){
                 size_t num = stoul(sub, nullptr, 16);
 
                 addBB(num, v);
+                if(poolCov.active){
+                    addBB(num, poolCov.vec);
+                }
             }
         }
     }
-    cout << "BB Total calced: " <<  calcedNumOfBB  << "\n";
-    cout << "BB Total written: " <<  numOfBB  << "\n";
-    cout << "Chosen BB: " << numOfChosenBB << "\n";
-    cout << "Chosen unique BB: "  <<v.size() << "\n";
     return v;
 }
 
 /* Parses a coverage file created with dynamorio 
  * param pathToFile is the relative 
  * param moduleStr is the keyword to look for in the files to determine what modules to include*/
-vector<basic_block> parseDrcov(string pathToFile, string moduleStr){
+int parseDrcov(string pathToFile, string moduleStr){
 
     ifstream fs(pathToFile);
 
@@ -261,7 +270,7 @@ vector<basic_block> parseDrcov(string pathToFile, string moduleStr){
     }
 
     vector<basic_block> uniqueBlocks = calcBasicBlocks(fs,selectedMods);
-    return uniqueBlocks;
+    return uniqueBlocks.size();
 }
 
 /* Look through the process list and checks if the files inside indicate that it
@@ -402,7 +411,8 @@ string calcLogPath(int coapPid){
     return path;
 }
 
-void calcFitness(int coapPid){
+/* Returns the fitness for the CoAP process id  */
+int calcFitness(int coapPid){
     string path = calcLogPath(coapPid);
 
     string moduleStr;
@@ -414,8 +424,9 @@ void calcFitness(int coapPid){
     }
 
     cout << path << "\n";
-    parseDrcov(path, moduleStr);
+    int fitness = parseDrcov(path, moduleStr);
 
+    return fitness;
 }
 
 /* Placeholder function that is used to send network packets according to input */
@@ -448,7 +459,6 @@ void sendPacket(std::vector<std::byte> vec){
 
 
 int test(){
-
     std::vector<coap_packet> packs = readPacketFile("./seed.txt");
     for(size_t i = 0; i < packs.size(); i++){
         std::vector<std::byte> bytes = packPacket(packs[i]);
@@ -460,39 +470,68 @@ int test(){
     return 1;
 }
 
+/* Performs all the actions to get the code coverage of a sessions (string of packets)  */
+int getSessionCodeCoverage(std::vector<coap_packet>& cpacks){
+    int coapPid = runDynamorio();
+    if(coapPid < 0){
+        cout << "Could not run dynamorio properly\n";
+    }
+    for(coap_packet cpack: cpacks){
+        sendPacket(packPacket(cpack));
+        sleepMs(50);
+    }
+    killProc(coapPid);
+
+    int sleepTime = 500;
+    sleepMs(sleepTime);
+
+    int fitness = calcFitness(coapPid);
+    cleanLogDir();
+
+    return fitness;
+}
+
+int startRecPoolCoverage(bool reset = 1){
+    poolCov.active = 1;
+    if(reset){
+        poolCov.vec.clear();
+    }
+    return 0;
+}
+
+int endRecPoolCoverage(){
+    poolCov.active = 0;
+    int poolFitness = poolCov.vec.size();
+    poolCov.vec.clear();
+    return poolFitness;
+}
+
 int main(int argc, char *argv[]){
-    //if(test()) return 0;
-    
-    //for(size_t i = 0; i < packet.size(); i++){
-    //    printf("%02X ", (unsigned int)packet[i]);
-    //}
-    //printf("\n");
-    
     if(argc == 2){
         readConfig(argv[1]);
     }else{
         readConfig();
     }
 
-    int coapPid = runDynamorio();
-    if(coapPid < 0){
-        cout << "Could not run dynamorio properly\n";
-    }
+
     std::vector<coap_packet> packets = readPacketFile("./seed.txt");
-    for(coap_packet cp: packets){
-        sendPacket(packPacket(cp));
-        break;
-    }
-    
-    killProc(coapPid);
+    std::vector<coap_packet> packets1, packets2, packets3, packets4;
+    packets1.push_back(packets[0]);
+    packets1.push_back(packets[1]);
+    packets1.push_back(packets[2]);
+    packets1.push_back(packets[4]);
+    startRecPoolCoverage();
+    int cc = getSessionCodeCoverage(packets1);
+    int cc2 = getSessionCodeCoverage(packets2);
+    int cc3 = getSessionCodeCoverage(packets3);
+    int cc4 = getSessionCodeCoverage(packets4);
 
-    int sleepTime = 500;
-    cout << "Sleeping " << sleepTime << " milliseconds to allow dynamorio to write results\n";
-    sleepMs(sleepTime);
-
-    calcFitness(coapPid);
-    cleanLogDir();
-
+    cout << "Code Coverage 1: " << cc << "\n";
+    cout << "Code Coverage 2: " << cc2 << "\n";
+    cout << "Code Coverage 3: " << cc3 << "\n";
+    cout << "Code Coverage 4: " << cc4 << "\n";
+    int poolCC = endRecPoolCoverage();
+    cout << "Pool Code Coverage: " << poolCC << "\n";
     return 0;
 }
 
