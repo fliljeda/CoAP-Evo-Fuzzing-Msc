@@ -10,6 +10,9 @@
 #include <unistd.h>
 #include <cstring>
 
+#ifndef COAP_NETWORK_HANDLER
+#define COAP_NETWORK_HANDLER
+
 #define PORT 5683
 #define BUFLEN 512
 #define SRV_IP "127.0.0.1"
@@ -91,3 +94,5 @@ coap_socket getCoapSocket(std::string host){
 
 
 }
+
+#endif

@@ -5,6 +5,9 @@
 #include <iostream>
 #include <fstream>
 
+#ifndef COAP_PACKET_HANDLER
+#define COAP_PACKET_HANDLER
+
 std::vector<std::byte> strToByteVec(std::string& str);
 
 template<typename T>
@@ -12,9 +15,17 @@ struct coap_field{
     T value;
     int bits;
 
+    //Used for mutations
+    int valid_min; //minimum valid value (length if string, opaque)
+    int valid_max; //maximum valid value (length if string, opaque)
+
     void setVals(T val, int bits){
         this->value = val;
         this->bits = bits;
+    }
+    void print(){
+        std::cout << "Bits: " << bits << " Valid Max/Min: "
+            << valid_max << "/" << valid_min << "\n";
     }
 };
 
@@ -48,24 +59,28 @@ struct coap_option{
 struct coap_packet{
 
     //Header
-    coap_field<int> version{1,2};
-    coap_field<int> type{1,2};
-    coap_field<int> token_length{0,4};
-    coap_field<int> code_class{0,3};
-    coap_field<int> code_detail{0,5};
-    coap_field<int> msg_id{0,16};
+    coap_field<int> version{1,2,1,1};
+    coap_field<int> type{1,2,0,4};
+    coap_field<int> token_length{0,4,0,8};
+    coap_field<int> code_class{0,3,0,7};
+    coap_field<int> code_detail{0,5,0,31};
+    coap_field<int> msg_id{0,16,0,0};
 
     //Token
-    coap_field<int64_t> token{0,64};
+    coap_field<int64_t> token{0,64,0,0};
 
     //Options
     std::vector<coap_option> options;
 
     //Payload
+    bool write_payload_marker = 0;
     coap_field<int> payload_marker{0xFF,8};
     std::vector<std::byte> payload ;
 
 };
+
+
+
 std::vector<std::byte> strToByteVec(std::string& str){
     std::vector<std::byte> vec;
     for(unsigned char c: str){
@@ -181,7 +196,7 @@ int writeCoapOptions(std::vector<std::byte>& vec, std::vector<coap_option>& opti
 }
 
 int writeCoapPayload(std::vector<std::byte>& vec, coap_packet& pack, int pos){
-    if(pack.payload.size() != 0){
+    if(pack.payload.size() != 0 || pack.write_payload_marker){
 
         pos = writeCoapField(vec, pack.payload_marker, pos);
         pos = writeCoapVector(vec, pack.payload, pos);
@@ -344,3 +359,6 @@ std::vector<coap_packet> readPacketFile(std::string filePath){
     std::cout << "\n";
     return vec;
 }
+
+
+#endif
