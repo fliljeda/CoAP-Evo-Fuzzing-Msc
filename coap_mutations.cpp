@@ -75,7 +75,7 @@ T getMinVal(coap_field<T>& field){
 std::vector<std::byte> genPredefinedString(int sizeMin = 1, int sizeMax = 65502){
     std::vector<std::byte> vec;
     std::vector<char> alphabet({'\0','a','A','.','\\','%'});
-    int size = 1 + (rand()%(sizeMax));
+    int size = sizeMin + (rand()%(sizeMax-sizeMin+1));
     for(int i = 0; i < size; i++){
         int rNum = rand()%(alphabet.size());
         vec.push_back(std::byte(alphabet[rNum]));
@@ -119,6 +119,7 @@ int mutate_payload(std::vector<std::byte>& payload, mutation_rule rule){
             break;
         case BITFLIP:
             {
+            if(payload.size() < 1) return 1;
             int bit_pos = rand()%(payload.size()*8);
             int idx = bit_pos / 8;
             int offset = bit_pos % 8;
@@ -195,6 +196,7 @@ int mutate_field(coap_field<std::vector<std::byte>>& field, mutation_rule rule){
             break;
         case BITFLIP:
             {
+            if(prev_val.size() < 1) return 1;
             int bit_pos = rand()%prev_bits;
             int idx = bit_pos / 8;
             int offset = bit_pos % 8;
@@ -244,7 +246,8 @@ T mutate_field(coap_field<T>& field, mutation_rule rule){
             field.setVals(getMaxVal(field)+1, prev_bits);
             break;
         case BITFLIP:
-            bit_pos = rand()%field.bits;
+            if(prev_bits == 0) return 1;
+            bit_pos = rand()%prev_bits;
             prev_val ^= 1 << bit_pos;
             field.setVals(prev_val, prev_bits);
             break;
@@ -255,17 +258,152 @@ T mutate_field(coap_field<T>& field, mutation_rule rule){
     return 0;
 }
 
-void mutate_option(coap_option& opt, mutation_rule rule){
-    //switch(rule){
-    //    case STR_EMPTY:
-    //        break;
-    //}
+void mutate_option(coap_option& opt, mutation_rule rule, bool adjustFormat = 1){
+    switch(rule){
+        case STR_EMPTY:
+            if(adjustFormat){
+                opt.length.setVals(0,4);
+                opt.optional_length.setVals(0,0);
+            }
+            opt.setValue("");
+            break;
+        case STR_PREDEFINED:{
+                std::vector<std::byte> predefined;
+                int valLength = opt.calcLength();
+                if(adjustFormat){
+                    predefined = genPredefinedString(valLength, valLength);
+                    opt.setLength(predefined.size());
+                }else{
+                    predefined = genPredefinedString(valLength-4, valLength+4);
+                }
+                opt.value = predefined;
+            }
+            break;
+        case STR_ADD_NON_PRINTABLE:{
+                std::vector<std::byte> predefined;
+                opt.value.push_back(getUnprintableChar());
+                if(adjustFormat){
+                    opt.setLength(predefined.size());
+                    opt.setLength(opt.value.size()+1);
+                }else{
+                }
+                opt.value = predefined;
+            }
+            break;
+        case STR_OVERFLOW:{
+                std::byte tmp = opt.value.size() > 0 ? opt.value[opt.value.size()-1] : std::byte('\0');
+                int addNum = opt.valid_max_size != -1 ? opt.valid_max_size : opt.calcLength()+4;
+                int currNum = opt.value.size();
+                for(int i = opt.value.size(); i <= addNum-currNum; i++){ //until max has been reached and one more
+                    opt.value.push_back(tmp);
+                }
+                if(adjustFormat){
+                    opt.setLength(opt.value.size());
+                }
+            }
+            break;
+        case UINT_EMPTY:
+            opt.setValue(0,0);
+            if(adjustFormat){
+                opt.setLength(0);
+            }else{
+            }
+            break;
+        case UINT_ABSOLUTE_MINUS_ONE:
+            opt.setValue(-1,1);
+            if(adjustFormat){
+                opt.setLength(1);
+            }else{
+            }
+            break;
+        case UINT_ABSOLUTE_ONE:
+            opt.setValue(1, 1);
+            if(adjustFormat){
+                opt.setLength(1);
+            }else{
+            }
+            break;
+        case UINT_ABSOLUTE_ZERO:
+            opt.setValue(0, 1);
+            if(adjustFormat){
+                opt.setLength(1);
+            }else{
+            }
+            break;
+        case UINT_ADD_ONE:
+            opt.setValue(opt.getIntVal() + 1, opt.calcLength());
+            break;
+        case UINT_SUBTRACT_ONE:
+            opt.setValue(opt.getIntVal() - 1, opt.calcLength());
+            break;
+        case UINT_MAX_RANGE:
+            opt.setValue((unsigned int)-1, opt.valid_max_size);
+            break;
+        case UINT_MIN_RANGE:
+            opt.setValue((unsigned int)0, opt.valid_min_size);
+            break;
+        case UINT_MAX_RANGE_PLUS_ONE:
+            //Add one more 0x1 byte at the end
+            opt.setValue(((unsigned int)-1) & (0x1 << opt.valid_max_size*8), opt.valid_max_size+1);
+            break;
+        case OPAQUE_EMPTY:
+            if(adjustFormat){
+                opt.length.setVals(0,4);
+                opt.optional_length.setVals(0,0);
+            }
+            opt.setValue("");
+            break;
+        case OPAQUE_PREDEFINED:{
+                std::vector<std::byte> predefined;
+                int valLength = opt.calcLength();
+                if(adjustFormat){
+                    predefined = genPredefinedBinaryString(valLength, valLength);
+                    opt.setLength(predefined.size());
+                }else{
+                    predefined = genPredefinedBinaryString(valLength-4, valLength+4);
+                }
+                opt.value = predefined;
+            }
+            break;
+        case OPAQUE_OVERFLOW:{
+                int addNum = opt.valid_max_size != -1 ? opt.valid_max_size : opt.calcLength()+4;
+                int currNum = opt.value.size();
+                for(int i = opt.value.size(); i <= addNum-currNum; i++){ //until max has been reached and one more
+                    opt.value.push_back(std::byte(rand()%255));
+                }
+                if(adjustFormat){
+                    opt.setLength(opt.value.size());
+                }
+            }
+            break;
+        case EMPTY_PREDEFINED:
+            opt.value.clear();
+            opt.value.push_back(getRandomEmptyChar());
+            opt.setLength(1);
+            break;
+        case EMPTY_ABSOLUTE_MINUS_ONE:
+            opt.value.clear();
+            opt.value.push_back(std::byte(-1));
+            opt.setLength(1);
+            break;
+        case EMPTY_ABSOLUTE_ONE:
+            opt.value.clear();
+            opt.value.push_back(std::byte(1));
+            opt.setLength(1);
+            break;
+        case EMPTY_ABSOLUTE_ZERO:
+            opt.value.clear();
+            opt.value.push_back(std::byte(0));
+            opt.setLength(1);
+            break;
+        default:
+            return;
+    }
 }
 
 
-
-void mutate(coap_packet& cpack, mutation_target target, mutation_rule rule){
-    std::srand(std::time(nullptr));
+/* Takes in a copy of the coap_packet, performs a mutation and returns the copy */
+coap_packet mutate(coap_packet cpack, mutation_target target, mutation_rule rule){
     switch(target){
         case VERSION:
             mutate_field(cpack.version, rule);
@@ -290,14 +428,14 @@ void mutate(coap_packet& cpack, mutation_target target, mutation_rule rule){
             break;
         case OPTION:
             std::cout << "Called mutate on option in wrong place. Use mutate_option instead\n";
-            return;
             break;
         case PAYLOAD:
             mutate_payload(cpack.payload, rule);
             break;
         default:
-        return;
+        return cpack;
     }
+    return cpack;
 }
 
 #endif

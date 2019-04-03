@@ -37,9 +37,19 @@ struct coap_option{
     enum Type {empty, opaque, uint, string};
     Type type;
     std::vector<std::byte> value;
+    int valid_min_size = -1;
+    int valid_max_size = -1;
 
     std::vector<std::byte>& getValue(){
         return value;
+    }
+
+    unsigned int getIntVal(){
+        unsigned int val = 0;
+        for(int i = value.size()-1; i >= 0; i--){
+            val |= ((unsigned int)value[i]) << i*8;
+        }
+        return val;
     }
 
     void setValue(unsigned int val, int bytes){
@@ -54,6 +64,30 @@ struct coap_option{
         value = strToByteVec(val);
     }
 
+    /* Sets appropriate length values for this option */
+    void setLength(int len){
+        if(len >= 269){
+            length.setVals(14, length.bits);
+            optional_length.setVals(len-269, 16);
+        }else if(len >= 13){
+            length.setVals(13, length.bits);
+            optional_length.setVals(len-13, 8);
+        }else{
+            length.setVals(len, length.bits);
+            optional_length.setVals(0, 0);
+        }
+    }
+
+    /* Calculates and returns the defined length of the options value */
+    int calcLength(){
+        if(length.value == 13){
+            return optional_length.value + 13;
+        }else if (length.value == 14){
+            return optional_length.value + 269;
+        }else{
+            return length.value;
+        }
+    }
 };
 
 struct coap_packet{
@@ -81,6 +115,8 @@ struct coap_packet{
 
 
 
+
+
 std::vector<std::byte> strToByteVec(std::string& str){
     std::vector<std::byte> vec;
     for(unsigned char c: str){
@@ -93,7 +129,8 @@ std::vector<std::byte> strToByteVec(std::string& str){
 /* Write param n_bits number of bits from param value  into vec
  * at the positiion param pos. Returns the new position
  * pos assumes position from left in the vector and the n_bits rightmost bits
- * is assumed for the value */
+ * is assumed for the value 
+ * TODO ADD optimised writing so that can write bytes and not only bits*/
 template<typename T>
 int writeBits(std::vector<std::byte>& vec, T value, int pos, int n_bits){
     //std::cout << "writing: " << n_bits << " at pos "<< pos << "\n";
@@ -344,19 +381,21 @@ coap_packet parsePacket(std::ifstream& fs){
     return cpack;
 }
 
-std::vector<coap_packet> readPacketFile(std::string filePath){
+/* Reads the target files for example packets.*/
+std::vector<coap_packet> readPacketFile(std::string filePath, unsigned int numOfReads = -1 /*int max*/){
     std::vector<coap_packet> vec;
     
     std::ifstream fs(filePath);
     std::string line;
-    while(getline(fs,line)){
+    unsigned int i = 0;
+    while(getline(fs,line) && i < numOfReads){
         std::vector<std::string> s = strSplit(line, ':');
         if(s.size() > 1 && s[1].compare("{")==0){
             coap_packet cpack = parsePacket(fs);
             vec.push_back(cpack);
         }
+        i++;
     }
-    std::cout << "\n";
     return vec;
 }
 

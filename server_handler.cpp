@@ -9,7 +9,6 @@
 #include <cstddef>
 #include "network_handler.cpp"
 #include "packet_handler.cpp"
-#include "mutations.cpp"
 
 #ifndef COAP_SERVER_HANDLER
 #define COAP_SERVER_HANDLER
@@ -458,17 +457,6 @@ void sendPacket(std::vector<std::byte> vec){
 }
 
 
-int test(){
-    std::vector<coap_packet> packs = readPacketFile("./seed.txt");
-    for(size_t i = 0; i < packs.size(); i++){
-        std::vector<std::byte> bytes = packPacket(packs[i]);
-        for(size_t j = 0; j < bytes.size(); j++){
-            printf("%02X ", (unsigned int)bytes[j]);
-        }
-        cout << "\n";
-    }
-    return 1;
-}
 
 /* Performs all the actions to get the code coverage of a sessions (string of packets)  */
 int getSessionCodeCoverage(std::vector<coap_packet>& cpacks){
