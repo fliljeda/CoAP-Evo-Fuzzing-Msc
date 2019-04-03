@@ -11,6 +11,7 @@
 #include "packet_handler.cpp"
 #include "coap_mutations.cpp"
 #include "server_handler.cpp"
+#include "fuzzer.cpp"
 
 vector<mutation_target> targs = {
     VERSION,
