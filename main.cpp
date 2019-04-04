@@ -124,7 +124,11 @@ int main(int argc, char *argv[]){
     }else{
         readConfig();
     }
-    testMutations();
+    std::vector<coap_packet> cpacks = getSeedFilePackets();
+    for(size_t i = 0; i < cpacks.size(); i++){
+        printPacket(cpacks[i]);
+        printOptions(cpacks[i]);
+    }
 
     
     return 0;

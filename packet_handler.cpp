@@ -36,6 +36,7 @@ struct coap_option{
     coap_field<int> optional_delta{0,0};
     enum Type {empty, opaque, uint, string};
     Type type;
+    int order; // used for special sorting with same opt number
     std::vector<std::byte> value;
     int valid_min_size = -1;
     int valid_max_size = -1;
@@ -203,7 +204,8 @@ int writeCoapOptions(std::vector<std::byte>& vec, std::vector<coap_option>& opti
 
         switch (options[i].type){
             case coap_option::Type::empty:{
-                //Write nothing
+                std::vector<std::byte> val = options[i].getValue();
+                pos = writeCoapVector(vec, val, pos);
             }
             break;
 
