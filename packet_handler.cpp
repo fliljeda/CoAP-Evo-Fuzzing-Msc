@@ -300,8 +300,10 @@ void setCoapCode(coap_packet& cpack, std::string val){
  * Should not be prepended or appended with any slashes */
 void setCoapUri(coap_packet& cpack, std::string uri){
     std::vector<std::string> comps = strSplit(uri, '/');
+    int i = 0;
     for(std::string s: comps){
         coap_option opt;
+        opt.order = i++;
         opt.number.setVals(0x0B, 4);
         if(s.size() > 268){
             opt.length.setVals(14, 4);
