@@ -1,10 +1,14 @@
 #include "packet_handler.cpp"
 #include "server_handler.cpp"
 #include <limits.h>
+#include "coap_mutations.cpp"
 
 
+#ifndef COAP_FUZZER
+#define COAP_FUZZER
 
 enum OpType{UINT,STRING,OPAQUE,EMPTY};
+
 
 struct m_option{
     std::string name;
@@ -13,6 +17,8 @@ struct m_option{
     int min_size;
     int max_size;
 };
+
+std::vector<coap_packet> seed_packets;
 
 
 std::vector<m_option> m_options = {
@@ -190,7 +196,156 @@ void setCodeDetailRandom(coap_packet& cpack){
     setCodeDetail(cpack, val);
 }
 
+void setPayloadRandom(coap_packet& cpack, int maxsize = 100){
+    int size = rand()%maxsize;
+    cpack.payload.clear();
+    for(int i = 0; i < size; i++){
+        cpack.payload.push_back(std::byte(rand()%256));
+    }
+}
+
+
+std::vector<std::pair<mutation_target, int>> m_target_tickets{
+    {VERSION,1},
+    {TYPE,3},
+    {TOKEN_LENGTH,2},
+    {CODE_CLASS,3},
+    {CODE_DETAIL,3},
+    {MSG_ID,5},
+    {TOKEN,5},
+    {OPTION,30},
+    {PAYLOAD,15},
+};
+
+
+mutation_target pickTarget(){
+    int num_of_tickets = 0;
+    for(const auto& p: m_target_tickets){
+        num_of_tickets += p.second;
+    }
+    int winner = rand()%num_of_tickets;
+    int index = 0;
+    while((winner -= m_target_tickets[index].second) >= 0){
+        index++;
+    }
+    return m_target_tickets[index].first;
+}
+
+
+/* A packet mutation either mutates, adds or changes either options,
+ * certain fields or payload */
+void packetMutation(coap_packet& cpack){
+    mutation_target target = pickTarget();
+    mutation_rule rule;
+    
+    int mutate_bit_perc = 30;
+    
+    bool bitflip = 0;
+    if(rand()%100 < mutate_bit_perc){
+        if(target != OPTION){
+            mutate(cpack, target, BITFLIP);
+            return ;
+        }else{
+            bitflip = 1;
+        }
+    }
+
+    switch(target){
+        case VERSION:
+            rule = uint_rules[rand()%uint_rules.size()];
+            mutate(cpack, target, rule);
+            break;
+        case TYPE:
+            rule = uint_rules[rand()%uint_rules.size()];
+            mutate(cpack, target, rule);
+            break;
+        case TOKEN_LENGTH:
+            rule = uint_rules[rand()%uint_rules.size()];
+            mutate(cpack, target, rule);
+            break;
+        case CODE_CLASS:
+            rule = uint_rules[rand()%uint_rules.size()];
+            mutate(cpack, target, rule);
+            break;
+        case CODE_DETAIL:
+            rule = uint_rules[rand()%uint_rules.size()];
+            mutate(cpack, target, rule);
+            break;
+        case MSG_ID:
+            rule = uint_rules[rand()%uint_rules.size()];
+            mutate(cpack, target, rule);
+            break;
+        case TOKEN:
+            rule = uint_rules[rand()%uint_rules.size()];
+            mutate(cpack, target, rule);
+            break;
+        case OPTION:{
+            if(cpack.options.size() == 0){
+                addOption(cpack, rand()%m_options.size());
+                return;
+            }
+            int addOrRemove = 10;
+            if(rand()%100 < addOrRemove){
+                if(rand()%2){
+                    addOption(cpack, rand()%m_options.size());
+                }else{
+                    cpack.options.erase(cpack.options.begin() + (rand()%cpack.options.size()));
+                }
+                return;
+            }
+            
+            coap_option& op = cpack.options[rand()%cpack.options.size()];
+            switch(op.type){
+                case coap_option::empty:
+                    rule = empty_rules[rand()%empty_rules.size()];
+                    break;
+                case coap_option::opaque:
+                    rule = opaque_rules[rand()%opaque_rules.size()];
+                    break;
+                case coap_option::uint:
+                    rule = uint_rules[rand()%uint_rules.size()];
+                    break;
+                case coap_option::string:
+                    rule = string_rules[rand()%string_rules.size()];
+                    break;
+            }
+            mutate_option(op, bitflip ? BITFLIP : rule);
+
+            }
+            break;
+        case PAYLOAD:
+            rule = payload_rules[rand()%payload_rules.size()];
+            mutate(cpack, target, rule);
+            break;
+    }
+}
+
+/* A session mutation mutates two random packets in the session */
+void sessionMutation(std::vector<coap_packet>& sessions){
+    int pos1 = rand()%sessions.size();
+    int pos2 = rand()%sessions.size();
+    packetMutation(sessions[pos1]);
+    packetMutation(sessions[pos2]);
+}
+
+/* A pool mutation either adds, remove or both add and removes
+ * sessions from the pool. The added session is created from the seed packets
+ * and generated with the generation engine */
+void poolMutation(std::vector<std::vector<coap_packet>>& pools){
+}
+
+/* Is done BOTH initially when generating pools and when performing crossovers on pools */
+void generateSession(){
+}
+
+/* Is done initially */
+void generatePool(){
+}
+
 std::vector<coap_packet> getSeedFilePackets(){
     std::vector<coap_packet> cpacks = readPacketFile("./seed.txt");
     return cpacks;
 }
+
+
+#endif

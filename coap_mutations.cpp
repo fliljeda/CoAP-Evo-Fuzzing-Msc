@@ -21,6 +21,8 @@ enum mutation_target{
     PAYLOAD,
 };
 
+
+
 enum mutation_rule{
     STR_EMPTY,
     STR_PREDEFINED,
@@ -46,6 +48,40 @@ enum mutation_rule{
     PAYLOAD_PREDEFINED,
     PAYLOAD_ADD_NON_PRINTABLE,
     BITFLIP
+};
+
+std::vector<mutation_rule> string_rules = {
+    STR_EMPTY,
+    STR_PREDEFINED,
+    STR_ADD_NON_PRINTABLE,
+    STR_OVERFLOW,
+};
+std::vector<mutation_rule> uint_rules = {
+    UINT_EMPTY,
+    UINT_ABSOLUTE_MINUS_ONE,
+    UINT_ABSOLUTE_ONE,
+    UINT_ABSOLUTE_ZERO,
+    UINT_ADD_ONE,
+    UINT_SUBTRACT_ONE,
+    UINT_MAX_RANGE,
+    UINT_MIN_RANGE,
+    UINT_MAX_RANGE_PLUS_ONE,
+};
+std::vector<mutation_rule> opaque_rules = {
+    OPAQUE_EMPTY,
+    OPAQUE_PREDEFINED,
+    OPAQUE_OVERFLOW,
+};
+std::vector<mutation_rule> empty_rules = {
+    EMPTY_PREDEFINED,
+    EMPTY_ABSOLUTE_MINUS_ONE,
+    EMPTY_ABSOLUTE_ONE,
+    EMPTY_ABSOLUTE_ZERO,
+};
+std::vector<mutation_rule> payload_rules = {
+    PAYLOAD_EMPTY,
+    PAYLOAD_PREDEFINED,
+    PAYLOAD_ADD_NON_PRINTABLE,
 };
 
 
@@ -396,6 +432,14 @@ void mutate_option(coap_option& opt, mutation_rule rule, bool adjustFormat = 1){
             opt.value.push_back(std::byte(0));
             opt.setLength(1);
             break;
+        case BITFLIP:
+            {
+            if(opt.value.size() < 1) return;
+            int bit_pos = rand()%(opt.value.size()*8);
+            int idx = bit_pos / 8;
+            int offset = bit_pos % 8;
+            opt.value[idx] ^= std::byte((1 << offset));
+            }
         default:
             return;
     }
@@ -403,7 +447,7 @@ void mutate_option(coap_option& opt, mutation_rule rule, bool adjustFormat = 1){
 
 
 /* Takes in a copy of the coap_packet, performs a mutation and returns the copy */
-coap_packet mutate(coap_packet cpack, mutation_target target, mutation_rule rule){
+coap_packet mutate(coap_packet& cpack, mutation_target target, mutation_rule rule){
     switch(target){
         case VERSION:
             mutate_field(cpack.version, rule);

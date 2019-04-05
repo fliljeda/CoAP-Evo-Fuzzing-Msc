@@ -118,17 +118,17 @@ int testMutations(){
 
 
 int main(int argc, char *argv[]){
-    std::srand(std::time(nullptr));
+    std::srand(std::time(nullptr) ^ getpid());
     if(argc == 2){
         readConfig(argv[1]);
     }else{
         readConfig();
     }
-    std::vector<coap_packet> cpacks = getSeedFilePackets();
-    for(size_t i = 0; i < cpacks.size(); i++){
-        printPacket(cpacks[i]);
-        printOptions(cpacks[i]);
-    }
+    //std::vector<coap_packet> cpacks = getSeedFilePackets();
+    //for(size_t i = 0; i < cpacks.size(); i++){
+    //    printPacket(cpacks[i]);
+    //    printOptions(cpacks[i]);
+    //}
 
     
     return 0;
