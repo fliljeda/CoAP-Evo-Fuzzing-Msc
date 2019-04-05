@@ -148,10 +148,49 @@ void printOptions(coap_packet& cpack){
     cout << "\n";
 }
 
+template<typename T>
+T getBitSize(T val){
+    int bits = 0;
+    while(val){
+        val >>= 1;
+        bits++;
+    }
+    return bits;
+}
+
+void setMsgId(coap_packet& cpack, int value){
+    cpack.msg_id.setVals(value,cpack.msg_id.bits);
+}
+void setMsgIdRandom(coap_packet& cpack){
+    setMsgId(cpack, rand());
+}
+
+void setToken(coap_packet& cpack, int64_t value, bool validLength = 1){
+    int highestBit = validLength ? getBitSize<int64_t>(value) : cpack.token.bits;
+    cpack.token.setVals(value, highestBit);
+}
+void setTokenRandom(coap_packet& cpack, bool validLength = 1){
+    int64_t val = ((int64_t)rand() << 32) | (int)rand();
+    setToken(cpack, val, validLength);
+}
+
+void setCodeClass(coap_packet& cpack, int value){
+    cpack.code_class.setVals(value, cpack.code_class.bits);
+}
+void setCodeClassRandom(coap_packet& cpack){
+    int val = rand()%cpack.code_class.valid_max;
+    setCodeClass(cpack, val);
+}
+
+void setCodeDetail(coap_packet& cpack, int value){
+    cpack.code_detail.setVals(value, cpack.code_detail.bits);
+}
+void setCodeDetailRandom(coap_packet& cpack){
+    int val = rand()%cpack.code_detail.valid_max;
+    setCodeDetail(cpack, val);
+}
+
 std::vector<coap_packet> getSeedFilePackets(){
     std::vector<coap_packet> cpacks = readPacketFile("./seed.txt");
-    for(size_t i = 0; i < m_options.size(); i++){
-        addOption(cpacks[0],i);
-    }
     return cpacks;
 }
