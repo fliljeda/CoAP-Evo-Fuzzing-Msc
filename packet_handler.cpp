@@ -254,7 +254,7 @@ std::vector<std::byte> packPacket(coap_packet& pac){
     pos = writeCoapField(vec, pac.code_class, pos);
     pos = writeCoapField(vec, pac.code_detail, pos);
     pos = writeCoapField(vec, pac.msg_id, pos);
-    pos = writeBits(vec, pac.token.value, pos, pac.token.value); //Token
+    pos = writeBits(vec, pac.token.value, pos, pac.token.bits); //Token
     pos = writeCoapOptions(vec, pac.options, pos);
     pos = writeCoapPayload(vec, pac, pos);
     return vec;
