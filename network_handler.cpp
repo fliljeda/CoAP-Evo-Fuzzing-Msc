@@ -38,7 +38,7 @@ struct coap_socket{
 
     //Receive from socket
     /*  TODO Return something to identify crashes and whatnot  */
-    void recUDP(int timeout_sec = 0, long timeout_usec = 0L){
+    bool recUDP(int timeout_sec = 0, long timeout_usec = 0L){
 
         //Set timeout
         struct timeval tv;
@@ -48,17 +48,20 @@ struct coap_socket{
         char buf[BUFLEN];
 
         if (recvfrom(socket, buf, BUFLEN, 0, (sockaddr*)&(si_other), (socklen_t*)&(slen))==-1){
-            diep("recvfrom()");
+            std::cout << "Got no response from the CoAP server\n";
+            return 0;
+        }else{
+            printf("Received packet from %s:%d\nData: %s\n\n",
+                inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
+            return 1;
         }
-        printf("Received packet from %s:%d\nData: %s\n\n",
-            inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
 
     }
 
     /* Send the given param2 data over the param1 given socket */
     coap_socket& sendUDP(const std::vector<std::byte>& data){
         if (sendto(socket, &data[0], data.size(), 0, (sockaddr*)&(si_other), slen)==-1){
-            diep("sendto()");
+            std::cout << "Could not send packet\n";
         }
 
         return *this;

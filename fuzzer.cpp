@@ -457,6 +457,7 @@ std::vector<std::vector<coap_packet>> poolCrossover(const std::vector<std::vecto
 
 std::vector<coap_packet> getSeedFilePackets(){
     std::vector<coap_packet> cpacks = readPacketFile("./seed.txt");
+    wkcore_packet = cpacks[0];
     seed_packets = cpacks;
     return cpacks;
 }

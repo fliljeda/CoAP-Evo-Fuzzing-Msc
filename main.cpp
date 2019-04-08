@@ -124,11 +124,9 @@ int main(int argc, char *argv[]){
     }else{
         readConfig();
     }
-    //std::vector<coap_packet> cpacks = getSeedFilePackets();
-    //for(size_t i = 0; i < cpacks.size(); i++){
-    //    printPacket(cpacks[i]);
-    //    printOptions(cpacks[i]);
-    //}
+    std::vector<coap_packet> cpacks = getSeedFilePackets();
+    int n = getSessionCodeCoverage(cpacks);
+    std::cout << "OK: " << (n != -1 ? "Alive": "Dead");
 
     
     return 0;

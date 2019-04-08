@@ -17,6 +17,7 @@
 using namespace std;
 namespace fsys = std::experimental::filesystem;
 
+coap_packet wkcore_packet;
 
 struct configuration{
     bool ready;
@@ -456,6 +457,13 @@ void sendPacket(std::vector<std::byte> vec){
     s.close_socket();
 }
 
+bool checkAliveness(){
+    netw::coap_socket s = netw::getCoapSocket("127.0.0.1");
+    s.sendUDP(packPacket(wkcore_packet));
+    bool alive = s.recUDP(1);
+    s.close_socket();
+    return alive;
+}
 
 
 /* Performs all the actions to get the code coverage of a sessions (string of packets)  */
@@ -468,6 +476,13 @@ int getSessionCodeCoverage(std::vector<coap_packet>& cpacks){
         sendPacket(packPacket(cpack));
         sleepMs(50);
     }
+
+    bool alive = checkAliveness();
+    if(!alive){
+        //LOG PACKETS
+        return -1;
+    }
+
     killProc(coapPid);
 
     int sleepTime = 200;
