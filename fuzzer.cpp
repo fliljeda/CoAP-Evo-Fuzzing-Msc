@@ -144,6 +144,11 @@ void addOption(coap_packet& cpack, std::string opName){
         }
     }
 }
+void addOptionRandom(coap_packet& cpack){
+    int opIdx = rand()%m_options.size();
+    addOption(cpack,opIdx);
+}
+
 void printOptions(coap_packet& cpack){
     for(size_t i = 0; i < cpack.options.size(); i++){
         for(size_t j = 0; j < cpack.options[i].value.size(); j++){
@@ -320,6 +325,47 @@ void packetMutation(coap_packet& cpack){
     }
 }
 
+
+/* Generates a single packet by selecting from seed and randomly set two atttributes, either
+ * options or other fields*/
+coap_packet generatePacket(){
+    coap_packet cpack;
+    if(seed_packets.size() != 0){
+        int seed_idx = rand()%seed_packets.size();
+        cpack = seed_packets[seed_idx];
+    }
+
+    for(size_t i = 0; i < 2; i++){
+        mutation_target targ = pickTarget();
+        switch(targ){
+            case VERSION:
+            case TYPE:
+            case MSG_ID:
+                setMsgIdRandom(cpack);
+                break;
+            case TOKEN_LENGTH:
+            case TOKEN:
+                setTokenRandom(cpack);
+                break;
+            case CODE_CLASS:
+                setCodeClassRandom(cpack);
+                break;
+            case CODE_DETAIL:
+                setCodeDetailRandom(cpack);
+                break;
+            case PAYLOAD:
+                setPayloadRandom(cpack);
+                break;
+            case OPTION:
+                addOptionRandom(cpack);
+                break;
+
+        }
+    }
+    
+    return cpack;
+}
+
 /* A session mutation mutates two random packets in the session */
 void sessionMutation(std::vector<coap_packet>& sessions){
     int pos1 = rand()%sessions.size();
@@ -328,22 +374,90 @@ void sessionMutation(std::vector<coap_packet>& sessions){
     packetMutation(sessions[pos2]);
 }
 
-/* A pool mutation either adds, remove or both add and removes
- * sessions from the pool. The added session is created from the seed packets
- * and generated with the generation engine */
-void poolMutation(std::vector<std::vector<coap_packet>>& pools){
+/* Is done BOTH initially when generating pools and when performing crossovers on pools */
+std::vector<coap_packet> generateSession(int session_size){
+    std::vector<coap_packet> session;
+    for(int i = 0; i < session_size; i++){
+        session.push_back(generatePacket());
+    }
+    return session;
 }
 
-/* Is done BOTH initially when generating pools and when performing crossovers on pools */
-void generateSession(){
+/* A pool mutation either adds, remove or both add and removes
+ * sessions from the pool. The added session is created from the seed packets
+ * and generated with the generation engine. This function is used to modify
+ * the pool */
+void poolMutation(std::vector<std::vector<coap_packet>>& pool, int session_size, bool fixed = 1){
+    
+    //Cant be first index, due to evolutioanry reasons (assumes pool is sorted by fitness)
+    auto erase_iterator = (pool.begin()+1) + rand()%(pool.size()-1); 
+
+    if(fixed){
+        pool.erase(erase_iterator);
+        pool.push_back(generateSession(session_size));
+    }else{
+        int decision = rand()%100;
+        if(decision < 50){
+            pool.erase(erase_iterator);
+        }else{
+            pool.push_back(generateSession(session_size));
+        }
+    }
 }
 
 /* Is done initially */
-void generatePool(){
+std::vector<std::vector<coap_packet>> generatePool(int pool_size, int session_size){
+    std::vector<std::vector<coap_packet>> pool;
+    for(int i = 0; i < pool_size; i++){
+        pool.push_back(generateSession(session_size));
+    }
+
+    return pool;
+}
+
+/* Mixes two sessions into a new one. Does not modify existing sessions */
+std::vector<coap_packet> sessionCrossover(const std::vector<coap_packet>& a, const std::vector<coap_packet>& b, size_t crossover_point){
+    std::vector<coap_packet> cross;
+    if(a.size() < crossover_point || b.size() < crossover_point){
+        std::cout << "Can't crossover on index larger than session array\n";
+        return a;
+    }
+
+    for(size_t i = 0; i < crossover_point; i++){
+        cross.push_back(a[i]);
+    }
+
+    for(size_t i = crossover_point; i < b.size(); i++){
+        cross.push_back(b[i]);
+    }
+
+    return cross;
+}
+
+/* Mixes two pools */
+std::vector<std::vector<coap_packet>> poolCrossover(const std::vector<std::vector<coap_packet>>& a, 
+        const std::vector<std::vector<coap_packet>>& b, 
+        size_t crossover_point){
+    std::vector<std::vector<coap_packet>> cross;
+    if(a.size() < crossover_point || b.size() < crossover_point){
+        std::cout << "Can't crossover on index larger than the pool array\n";
+        return a;
+    }
+
+    for(size_t i = 0; i < crossover_point; i++){
+        cross.push_back(a[i]);
+    }
+
+    for(size_t i = crossover_point; i < b.size(); i++){
+        cross.push_back(b[i]);
+    }
+
+    return cross;
 }
 
 std::vector<coap_packet> getSeedFilePackets(){
     std::vector<coap_packet> cpacks = readPacketFile("./seed.txt");
+    seed_packets = cpacks;
     return cpacks;
 }
 

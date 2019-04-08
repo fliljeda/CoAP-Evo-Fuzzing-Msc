@@ -47,8 +47,9 @@ struct coap_socket{
         setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
         char buf[BUFLEN];
 
-        if (recvfrom(socket, buf, BUFLEN, 0, (sockaddr*)&(si_other), (socklen_t*)&(slen))==-1)
+        if (recvfrom(socket, buf, BUFLEN, 0, (sockaddr*)&(si_other), (socklen_t*)&(slen))==-1){
             diep("recvfrom()");
+        }
         printf("Received packet from %s:%d\nData: %s\n\n",
             inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
 
@@ -56,8 +57,9 @@ struct coap_socket{
 
     /* Send the given param2 data over the param1 given socket */
     coap_socket& sendUDP(const std::vector<std::byte>& data){
-        if (sendto(socket, &data[0], data.size(), 0, (sockaddr*)&(si_other), slen)==-1)
+        if (sendto(socket, &data[0], data.size(), 0, (sockaddr*)&(si_other), slen)==-1){
             diep("sendto()");
+        }
 
         return *this;
     }
