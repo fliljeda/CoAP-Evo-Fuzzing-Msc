@@ -9,6 +9,7 @@
 #include <cstddef>
 #include "network_handler.cpp"
 #include "packet_handler.cpp"
+#include "logger.cpp"
 
 #ifndef COAP_SERVER_HANDLER
 #define COAP_SERVER_HANDLER
@@ -63,7 +64,7 @@ string stringConcat(const vector<string>& l, string separator = ""){
 /* If dynamorio starts other processes, unnecessary log files may be created
  * This function serves as a cleaner for the log dir.*/
 void cleanLogDir(){
-    cout << "Cleaning logdir: " << configs.logDir << " of unnecessary logfiles\n";
+    //cout << "Cleaning logdir: " << configs.logDir << " of unnecessary logfiles\n";
 
     for(fsys::directory_entry p: fsys::directory_iterator(configs.logDir)){
         string filename = p.path().filename();
@@ -83,7 +84,7 @@ bool setCurrentLogdir(const string& logDirConf){
     string dateStr = getNowDateString();
     bool dirExists = 0;
     if(!fsys::is_directory(logDir)){
-        cout << "Could not find directory " << logDir << " to write logs in, using /tmp/" << "\n";
+        //cout << "Could not find directory " << logDir << " to write logs in, using /tmp/" << "\n";
         logDir = "/tmp/";
     }
     for(fsys::directory_entry p: fsys::directory_iterator(logDir)){
@@ -154,11 +155,7 @@ void sleepMs(long milliseconds){
     tim1.tv_nsec = ((long)milliseconds%1000) * 1000000L;
     
     nanosleep(&tim1, &tim2);
-
 }
-
-
-
 
 bool addBB(size_t num, vector<basic_block>& v){
     for(size_t i = 0; i < v.size(); i++){
@@ -202,7 +199,7 @@ vector<int> findMod(ifstream &fs, string moduleStr){
             int modId = stoul(modField, nullptr, 10);
             if(std::find(modules.begin(), modules.end(), modId) == modules.end()){
                    modules.push_back(modId);
-                   cout << "modId: " << modId << "\n";
+                   //cout << "modId: " << modId << "\n";
             }
         }
     }
@@ -305,7 +302,7 @@ bool isProcNamed(int pid, string name){ return isProcNamed(to_string(pid), name)
  * Retries the guess a number of times with delays between to increase probability of process in /proc
  * pidGuess: the guess for which process is the coap process*/
 int findCoapPid(string binName, int maxTries = 8){
-    cout << "Trying to find Coap binary, searching through /proc/\n";
+    //cout << "Trying to find Coap binary, searching through /proc/\n";
     int retries = 0;
     long sleepTimeMs = 100;
     long backOffMs = 100;
@@ -319,12 +316,12 @@ int findCoapPid(string binName, int maxTries = 8){
             if(isProcNamed((string)(direntry.path().filename()), binName)){
                 auto end = chrono::system_clock::now();
                 chrono::duration<double> d = end-start;
-                cout << "Elapsed time: " << d.count()<< "\n";
+                //cout << "Elapsed time: " << d.count()<< "\n";
                 return stol((string)(direntry.path().filename()));
             }
         }
 
-        cout << "Could not find process named: " << binName << ", Retrying in "<< sleepTimeMs <<"ms\n";
+        //cout << "Could not find process named: " << binName << ", Retrying in "<< sleepTimeMs <<"ms\n";
         sleepMs(sleepTimeMs);
         sleepTimeMs += backOffMs;
     }while(retries++ < maxTries);
@@ -354,7 +351,7 @@ int runDynamorio(){
     if(pid == 0){
         execl("/bin/sh", "sh", "-c", command.c_str(), (char*) 0);
     }else{
-        cout << "I am parent, child is: " << pid+1 << "\n";
+        //cout << "I am parent, child is: " << pid+1 << "\n";
     }
 
     int coapPid = findCoapPid(configs.coapBinName);
@@ -368,7 +365,7 @@ int killProc(int procId){
     sleepMs(100);
     waitpid(procId, 0, WNOHANG);
     waitpid(0, 0, WNOHANG);
-    cout << "Killed process: " << procId << "\n";
+    //cout << "Killed process: " << procId << "\n";
     return 0;
 }
 
@@ -472,20 +469,24 @@ int getSessionCodeCoverage(std::vector<coap_packet>& cpacks){
     if(coapPid < 0){
         cout << "Could not run dynamorio properly\n";
     }
+    std::vector<std::vector<std::byte>> packed_cpacks;
     for(coap_packet cpack: cpacks){
-        sendPacket(packPacket(cpack));
-        sleepMs(50);
+        std::vector<std::byte> packed = packPacket(cpack);
+        packed_cpacks.push_back(packed);
+        sendPacket(packed);
+        sleepMs(25);
     }
 
     bool alive = checkAliveness();
     if(!alive){
         //LOG PACKETS
+        log_packets(packed_cpacks);
         return -1;
     }
 
     killProc(coapPid);
 
-    int sleepTime = 200;
+    int sleepTime = 100;
     sleepMs(sleepTime);
 
     int fitness = calcFitness(coapPid);

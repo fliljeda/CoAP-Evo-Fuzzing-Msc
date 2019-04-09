@@ -48,11 +48,11 @@ struct coap_socket{
         char buf[BUFLEN];
 
         if (recvfrom(socket, buf, BUFLEN, 0, (sockaddr*)&(si_other), (socklen_t*)&(slen))==-1){
-            std::cout << "Got no response from the CoAP server\n";
+            //std::cout << "Got no response from the CoAP server\n";
             return 0;
         }else{
-            printf("Received packet from %s:%d\nData: %s\n\n",
-                inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
+            //printf("Received packet from %s:%d\nData: %s\n\n",inet_ntoa(si_other.sin_addr), ntohs(si_other.sin_port), buf);
+            printf("Received packet data: %s\n", buf);
             return 1;
         }
 
@@ -60,6 +60,7 @@ struct coap_socket{
 
     /* Send the given param2 data over the param1 given socket */
     coap_socket& sendUDP(const std::vector<std::byte>& data){
+        std::cout << "Sending:\n";
         if (sendto(socket, &data[0], data.size(), 0, (sockaddr*)&(si_other), slen)==-1){
             std::cout << "Could not send packet\n";
         }

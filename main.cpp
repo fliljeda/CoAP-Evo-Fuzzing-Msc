@@ -12,6 +12,7 @@
 #include "coap_mutations.cpp"
 #include "server_handler.cpp"
 #include "fuzzer.cpp"
+#include "logger.cpp"
 
 vector<mutation_target> targs = {
     VERSION,
@@ -51,8 +52,7 @@ vector<mutation_rule> rules ={
     BITFLIP
 };
 
-void printPacket(coap_packet& cpack){
-    std::vector<std::byte> bytes = packPacket(cpack);
+void printPacket(std::vector<std::byte>& bytes){
     for(size_t j = 0; j < bytes.size(); j++){
         printf("%02X ", (unsigned int)bytes[j]);
         if(j > 32){
@@ -61,6 +61,10 @@ void printPacket(coap_packet& cpack){
         }
     }
     cout << "\n";
+}
+void printPacket(coap_packet& cpack){
+    std::vector<std::byte> bytes = packPacket(cpack);
+    printPacket(bytes);
 }
 
 void printDiff(coap_packet& cpack1, coap_packet& cpack2){
@@ -124,10 +128,38 @@ int main(int argc, char *argv[]){
     }else{
         readConfig();
     }
-    std::vector<coap_packet> cpacks = getSeedFilePackets();
-    int n = getSessionCodeCoverage(cpacks);
-    std::cout << "OK: " << (n != -1 ? "Alive": "Dead");
-
+    getSeedFilePackets();
+    
+    
+    auto pool = generatePool(10, 10);
+    
+    /*     TEST LOGGER            */
+    std::vector<std::vector<std::byte>> pool_bytes;
+    
+    for(auto a: pool[0]){
+        pool_bytes.push_back(packPacket(a));
+    }
+    std::string s = log_packets(pool_bytes);
+    for(auto p: pool_bytes){
+        printPacket(p);
+    }
+    pool_bytes = get_logged_packets(s);
+    for(auto p: pool_bytes){
+        printPacket(p);
+    }
     
     return 0;
+    /* ************************** */
+
+
+    startRecPoolCoverage();
+    for(size_t i = 0; i < pool.size(); i++){
+        int n = getSessionCodeCoverage(pool[i]);
+        std::cout << "Session Fitness: " << n << "\n";
+    }
+
+    int n = endRecPoolCoverage();
+    std::cout << "Pool Fitness: " << n << "\n";
+    
+   return 0;
 }

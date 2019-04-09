@@ -1,6 +1,6 @@
 CC=g++
 FLAGS=-std=c++17 -Wall -lstdc++fs
-SRCS=main.cpp network_handler.cpp packet_handler.cpp coap_mutations.cpp fuzzer.cpp evo_handler.cpp evo_handler.cpp
+SRCS=main.cpp network_handler.cpp packet_handler.cpp coap_mutations.cpp fuzzer.cpp evo_handler.cpp evo_handler.cpp server_handler.cpp logger.cpp
 
 all: main.o
 
