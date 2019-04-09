@@ -13,6 +13,7 @@
 #include "server_handler.cpp"
 #include "fuzzer.cpp"
 #include "logger.cpp"
+#include "evo_handler.cpp"
 
 vector<mutation_target> targs = {
     VERSION,
@@ -133,7 +134,8 @@ int main(int argc, char *argv[]){
     
     auto pool = generatePool(10, 10);
     
-    /*     TEST LOGGER            */
+    /*     TEST EVO            */
+
     
     return 0;
     /* ************************** */
