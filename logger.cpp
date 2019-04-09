@@ -15,8 +15,52 @@ namespace fsys = std::experimental::filesystem;
 string getClockString(){
         std::time_t now_c = time(nullptr);
         char time[20];
-        strftime(time, sizeof(time), "%y%m%d%H%M%S", localtime(&now_c));
+        strftime(time, sizeof(time), "%y%m%d-%H%M%S", localtime(&now_c));
         return string(time);
+}
+
+string log_fitness(string logName, int generation, int pool_fitness, int session_fitness){
+    string dirName = "fitnesslogs";
+    std::ostringstream s;
+    s << dirName << "/" << logName;
+    string path = s.str();
+
+    
+    string contents;
+
+    contents.append(std::to_string(generation)).append(" ")
+        .append(std::to_string(pool_fitness)).append(" ").append(std::to_string(session_fitness));
+    contents.append("\n");
+    std::ofstream ofs(path, std::ios_base::app);
+    ofs << contents;
+
+
+    return logName;
+}
+
+
+string create_fitness_log(){
+    string dirName = "fitnesslogs";
+    if(!fsys::exists(dirName)){
+        std::cout << dirName << " directory does not exist. Creating it..." << "\n";
+        int res = fsys::create_directory(dirName);
+        if(res){
+            std::cout << "Created directory: " << dirName << "\n";
+        }else{
+            std::cout << "Failed to create directory: " << dirName << "\n";
+            std::cout << "Returning.." << "\n";
+            return "";
+        }
+    }
+    string logName = getClockString();
+    std::ostringstream s;
+    s << dirName << "/" << logName;
+    string path = s.str();
+
+    string contents = "GEN POOL SESSION\n";
+    std::ofstream ofs(path);
+    ofs << contents;
+    return logName;
 }
 
 

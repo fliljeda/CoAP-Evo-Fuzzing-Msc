@@ -134,19 +134,6 @@ int main(int argc, char *argv[]){
     auto pool = generatePool(10, 10);
     
     /*     TEST LOGGER            */
-    std::vector<std::vector<std::byte>> pool_bytes;
-    
-    for(auto a: pool[0]){
-        pool_bytes.push_back(packPacket(a));
-    }
-    std::string s = log_packets(pool_bytes);
-    for(auto p: pool_bytes){
-        printPacket(p);
-    }
-    pool_bytes = get_logged_packets(s);
-    for(auto p: pool_bytes){
-        printPacket(p);
-    }
     
     return 0;
     /* ************************** */

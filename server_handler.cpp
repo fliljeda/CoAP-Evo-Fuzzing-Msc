@@ -474,7 +474,7 @@ int getSessionCodeCoverage(std::vector<coap_packet>& cpacks){
         std::vector<std::byte> packed = packPacket(cpack);
         packed_cpacks.push_back(packed);
         sendPacket(packed);
-        sleepMs(25);
+        sleepMs(15);
     }
 
     bool alive = checkAliveness();
