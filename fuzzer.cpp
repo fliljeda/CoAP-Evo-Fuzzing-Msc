@@ -374,6 +374,12 @@ void sessionMutation(std::vector<coap_packet>& sessions){
     packetMutation(sessions[pos2]);
 }
 
+/* A session mutation mutates the two packets indexed by parameters in the session */
+void sessionMutation(std::vector<coap_packet>& sessions, int a, int b){
+    packetMutation(sessions[a]);
+    packetMutation(sessions[b]);
+}
+
 /* Is done BOTH initially when generating pools and when performing crossovers on pools */
 std::vector<coap_packet> generateSession(int session_size){
     std::vector<coap_packet> session;
@@ -393,7 +399,7 @@ void poolMutation(std::vector<std::vector<coap_packet>>& pool, int session_size,
     auto erase_iterator = (pool.begin()+1) + rand()%(pool.size()-1); 
 
     if(fixed){
-        pool.erase(erase_iterator);
+        pool.erase(erase_iterator); //erases 1 element
         pool.push_back(generateSession(session_size));
     }else{
         int decision = rand()%100;
