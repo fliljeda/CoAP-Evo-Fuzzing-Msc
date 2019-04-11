@@ -70,9 +70,11 @@ std::vector<std::vector<std::byte>> get_logged_packets(string logName, string di
     string path = s.str();
     std::vector<std::vector<std::byte>> packets;
     
+    std::cout << "Reading: " << path << "\n";
     std::ifstream fs(path);
     string tmp;
     while(getline(fs,tmp)){
+        std::cout << tmp << "\n";
         size_t size = stoi(tmp);
         std::vector<std::byte> pack;
         char c;

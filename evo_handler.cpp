@@ -16,9 +16,9 @@
 #ifndef EVO_HANDLER
 #define EVO_HANDLER
 
-const size_t POOLS_N = 10;
-const size_t SESSIONS_N = 10;
-const size_t PACKETS_N = 10;
+const size_t POOLS_N = 5;
+const size_t SESSIONS_N = 5;
+const size_t PACKETS_N = 5;
 
 bool rollOnPercentage(int chance){
     return (rand()%100) < chance;
@@ -27,7 +27,7 @@ bool rollOnPercentage(int chance){
 
 struct pool_t{
     std::vector<std::vector<coap_packet>> sessions;
-    std::vector<int> session_fitness;
+    std::vector<int> session_fitness = std::vector<int>(SESSIONS_N);
     int pool_fitness = 0;
 
     /* Sort sessions according to the session fitness vector in descending order
@@ -57,6 +57,7 @@ void measureFitness(pool_t& pool){
 
     for(size_t i = 0; i < pool.sessions.size(); i++){
         int cc = getSessionCodeCoverage(pool.sessions[i]);
+        std::cout << "Fitness: " << cc << "\n";
         pool.session_fitness[i] = cc;
     }
     pool.pool_fitness = endRecPoolCoverage();
@@ -65,7 +66,8 @@ void measureFitness(pool_t& pool){
 
 /* Assigns [0-max) on parameters but not the same value */
 void assignTwoDifferentRandom(int& a, int& b, int max){
-    if(max == 1){
+    if(max < 2){
+        std::cout << "Can't assign different randoms as max is smaller than 2 \n";
         a = 0;
         b = 0;
         return;
@@ -76,6 +78,7 @@ void assignTwoDifferentRandom(int& a, int& b, int max){
 
 void measureFitness(std::vector<pool_t>& pools){
     for(size_t i = 0; i < pools.size(); i++){
+        std::cout << "************ Pool "<< i <<" *****************\n";
         measureFitness(pools[i]);
     }
     sort(pools.begin(), pools.end(), [](const pool_t& a,const pool_t& b){
@@ -94,6 +97,7 @@ void evolvePoolMutation(std::vector<pool_t>& pools){
 void evolvePoolCrossover(std::vector<pool_t>& pools){
     std::vector<pool_t> newPools;
 
+
     newPools.push_back(pools[0]);
 
     for(size_t j = 1; j < POOLS_N; j++){
@@ -101,6 +105,7 @@ void evolvePoolCrossover(std::vector<pool_t>& pools){
         int a,b;
         assignTwoDifferentRandom(a,b, topHalf ? pools.size()/2 : pools.size());
         pool_t tmp_pool;
+        tmp_pool.session_fitness.resize(SESSIONS_N);
         tmp_pool.sessions = poolCrossover(pools[a].sessions, pools[b].sessions, rand()%POOLS_N);
         newPools.push_back(tmp_pool);
     }
@@ -165,7 +170,34 @@ void evolve(std::vector<pool_t>& pools){
     
 }
 
-void run(){
+int getMaxSessionFitness(std::vector<pool_t>& pools){
+    int max = 0;
+    for(pool_t& pool: pools){
+        for(auto& session_fitness: pool.session_fitness){
+            if(session_fitness > max){
+                max = session_fitness;
+            }
+        }
+    }
+    if(max == 0){
+        std::cout << "Max is 0, shouldnt be\n";
+        std::cout << "Pool size: " << pools.size() << "\n";
+        std::cout << "Print all fitness: "  << "\n";
+        for(pool_t& pool: pools){
+            std::cout << "Fitness size: " << pool.session_fitness.size() << "\n";
+            for(auto& session_fitness: pool.session_fitness){
+                if(session_fitness > max){
+                    std::cout << session_fitness << " ";
+                }
+            }
+        }
+        std::cout << "\n";
+
+    }
+    return max;
+}
+
+void evo_run(){
     std::vector<pool_t> pools(POOLS_N);
     for(size_t i = 0; i < pools.size(); i++){
         pools[i].session_fitness.resize(SESSIONS_N);
@@ -173,8 +205,11 @@ void run(){
     }
 
     int generation = 0;
+    std::string name = create_fitness_log();
+    std::cout << "Fitness log: " << name << "\n";
     while(1){
         measureFitness(pools);
+        log_fitness(name, generation, pools[0].pool_fitness, getMaxSessionFitness(pools)); 
         evolve(pools);
         generation++;
     }

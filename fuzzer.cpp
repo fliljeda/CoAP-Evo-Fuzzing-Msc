@@ -236,6 +236,17 @@ mutation_target pickTarget(){
     return m_target_tickets[index].first;
 }
 
+void checkForKnownErrors(coap_packet& cpack){
+    //Option with number 0x0B and length 0
+    for(size_t i = 0; i < cpack.options.size(); i++){
+        coap_option& op = cpack.options[i];
+        if(op.number.value == 0x0B && op.length.value == 0){
+            std::cout << "Found known error in coap packet, erasing it\n";
+            cpack.options.erase(cpack.options.begin() + i);
+            i--;
+        }
+    }
+}
 
 /* A packet mutation either mutates, adds or changes either options,
  * certain fields or payload */
@@ -323,6 +334,7 @@ void packetMutation(coap_packet& cpack){
             mutate(cpack, target, rule);
             break;
     }
+    checkForKnownErrors(cpack);
 }
 
 

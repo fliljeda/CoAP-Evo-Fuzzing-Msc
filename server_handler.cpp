@@ -464,23 +464,20 @@ bool checkAliveness(){
 
 
 /* Performs all the actions to get the code coverage of a sessions (string of packets)  */
-int getSessionCodeCoverage(std::vector<coap_packet>& cpacks){
+int getSessionCodeCoverage(std::vector<std::vector<std::byte>>& cpacks){
     int coapPid = runDynamorio();
     if(coapPid < 0){
         cout << "Could not run dynamorio properly\n";
     }
-    std::vector<std::vector<std::byte>> packed_cpacks;
-    for(coap_packet cpack: cpacks){
-        std::vector<std::byte> packed = packPacket(cpack);
-        packed_cpacks.push_back(packed);
-        sendPacket(packed);
+    for(auto& cpack: cpacks){
+        sendPacket(cpack);
         sleepMs(15);
     }
 
     bool alive = checkAliveness();
     if(!alive){
         //LOG PACKETS
-        log_packets(packed_cpacks);
+        log_packets(cpacks);
         return -1;
     }
 
@@ -493,6 +490,14 @@ int getSessionCodeCoverage(std::vector<coap_packet>& cpacks){
     cleanLogDir();
 
     return fitness;
+}
+int getSessionCodeCoverage(std::vector<coap_packet>& cpacks){
+    std::vector<std::vector<std::byte>> packed_cpacks;
+    for(coap_packet cpack: cpacks){
+        std::vector<std::byte> packed = packPacket(cpack);
+        packed_cpacks.push_back(packed);
+    }
+    return getSessionCodeCoverage(packed_cpacks);
 }
 
 int startRecPoolCoverage(bool reset = 1){

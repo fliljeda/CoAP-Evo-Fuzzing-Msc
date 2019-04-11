@@ -121,6 +121,21 @@ int testMutations(){
     return 0;
 }
 
+int test_main(){
+    std::string s;
+    std::cout << "Log: ";
+    std::cin >> s;
+
+    auto x = get_logged_packets(s,"harmful");
+    for(auto& y: x){
+        std::cout << "confirm send next packet:";
+        std::cin >> s;
+        std::cout << y.size() << "\n";
+        sendPacket(y);
+    }
+    return 0;
+}
+
 
 int main(int argc, char *argv[]){
     std::srand(std::time(nullptr) ^ getpid());
@@ -131,16 +146,14 @@ int main(int argc, char *argv[]){
     }
     getSeedFilePackets();
     
-    
-    auto pool = generatePool(10, 10);
-    
+    evo_run();
     /*     TEST EVO            */
 
     
     return 0;
     /* ************************** */
 
-
+    auto pool = generatePool(10, 10);
     startRecPoolCoverage();
     for(size_t i = 0; i < pool.size(); i++){
         int n = getSessionCodeCoverage(pool[i]);
