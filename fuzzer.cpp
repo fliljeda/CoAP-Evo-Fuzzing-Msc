@@ -189,20 +189,28 @@ void setCodeClass(coap_packet& cpack, int value){
     cpack.code_class.setVals(value, cpack.code_class.bits);
 }
 void setCodeClassRandom(coap_packet& cpack){
-    int val = rand()%cpack.code_class.valid_max;
-    setCodeClass(cpack, val);
+    if(cpack.code_class.valid_max != 0){
+        int val = rand()%cpack.code_class.valid_max;
+        setCodeClass(cpack, val);
+    }else{
+        setCodeClass(cpack, 0);
+    }
 }
 
 void setCodeDetail(coap_packet& cpack, int value){
     cpack.code_detail.setVals(value, cpack.code_detail.bits);
 }
 void setCodeDetailRandom(coap_packet& cpack){
-    int val = rand()%cpack.code_detail.valid_max;
-    setCodeDetail(cpack, val);
+    if(cpack.code_detail.valid_max != 0){
+        int val = rand()%cpack.code_detail.valid_max;
+        setCodeDetail(cpack, val);
+    }else{
+        setCodeDetail(cpack, 0);
+    }
 }
 
 void setPayloadRandom(coap_packet& cpack, int maxsize = 100){
-    int size = rand()%maxsize;
+    int size = rand()%(maxsize != 0? maxsize: 1);
     cpack.payload.clear();
     for(int i = 0; i < size; i++){
         cpack.payload.push_back(std::byte(rand()%256));
@@ -236,17 +244,6 @@ mutation_target pickTarget(){
     return m_target_tickets[index].first;
 }
 
-void checkForKnownErrors(coap_packet& cpack){
-    //Option with number 0x0B and length 0
-    for(size_t i = 0; i < cpack.options.size(); i++){
-        coap_option& op = cpack.options[i];
-        if(op.number.value == 0x0B && op.length.value == 0){
-            std::cout << "Found known error in coap packet, erasing it\n";
-            cpack.options.erase(cpack.options.begin() + i);
-            i--;
-        }
-    }
-}
 
 /* A packet mutation either mutates, adds or changes either options,
  * certain fields or payload */
@@ -334,7 +331,6 @@ void packetMutation(coap_packet& cpack){
             mutate(cpack, target, rule);
             break;
     }
-    checkForKnownErrors(cpack);
 }
 
 
@@ -408,7 +404,7 @@ std::vector<coap_packet> generateSession(int session_size){
 void poolMutation(std::vector<std::vector<coap_packet>>& pool, int session_size, bool fixed = 1){
     
     //Cant be first index, due to evolutioanry reasons (assumes pool is sorted by fitness)
-    auto erase_iterator = (pool.begin()+1) + rand()%(pool.size()-1); 
+    auto erase_iterator = (pool.begin()+1) + rand()%(pool.size()-1 != 0 ? pool.size() -1 : 1); 
 
     if(fixed){
         pool.erase(erase_iterator); //erases 1 element

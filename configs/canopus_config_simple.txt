@@ -1,0 +1,5 @@
+coapexecmd=../servers/canopus/server-coap > /dev/null 2>> canopus/server-output
+logdir=/tmp/canopus/
+dumpopt=-dump_text
+coapbinname=server-coap
+modulestr=canopus

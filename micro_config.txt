@@ -1,5 +1,0 @@
-coapexecmd=../servers/microcoap/coap > /dev/null
-logdir=../servers/coveragelogs
-dumpopt=-dump_text
-coapbinname=coap
-modulestr=microcoap

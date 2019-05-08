@@ -111,7 +111,8 @@ T getMinVal(coap_field<T>& field){
 std::vector<std::byte> genPredefinedString(int sizeMin = 1, int sizeMax = 65502){
     std::vector<std::byte> vec;
     std::vector<char> alphabet({'\0','a','A','.','\\','%'});
-    int size = sizeMin + (rand()%(sizeMax-sizeMin+1));
+    int interval = sizeMax-sizeMin+1;
+    int size = sizeMin + (rand()%(interval != 0 ? interval : 1));
     for(int i = 0; i < size; i++){
         int rNum = rand()%(alphabet.size());
         vec.push_back(std::byte(alphabet[rNum]));
@@ -123,6 +124,7 @@ std::vector<std::byte> genPredefinedString(int sizeMin = 1, int sizeMax = 65502)
  * values */
 std::vector<std::byte> genPredefinedBinaryString(int sizeMin = 1, int sizeMax = 65502){
     std::vector<std::byte> vec;
+    sizeMax = sizeMax != 0 ? sizeMax : 1;
     int size = 1 + (rand()%(sizeMax));
     for(int i = 0; i < size; i++){
         int rNum = rand()%(256);
@@ -233,7 +235,7 @@ int mutate_field(coap_field<std::vector<std::byte>>& field, mutation_rule rule){
         case BITFLIP:
             {
             if(prev_val.size() < 1) return 1;
-            int bit_pos = rand()%prev_bits;
+            int bit_pos = rand()%(prev_bits != 0 ? prev_bits : 1);
             int idx = bit_pos / 8;
             int offset = bit_pos % 8;
             prev_val[idx] ^= std::byte((1 << offset));

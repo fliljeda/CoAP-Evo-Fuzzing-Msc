@@ -121,13 +121,14 @@ int testMutations(){
     return 0;
 }
 
-int test_main(){
+
+int testHarmfulPackets(){
+    auto harmful =  get_logged_packets("190412-102931");
     std::string s;
     std::cout << "Log: ";
     std::cin >> s;
-
-    auto x = get_logged_packets(s,"harmful");
-    for(auto& y: x){
+     
+    for(auto& y: harmful){
         std::cout << "confirm send next packet:";
         std::cin >> s;
         std::cout << y.size() << "\n";
@@ -145,6 +146,8 @@ int main(int argc, char *argv[]){
         readConfig();
     }
     getSeedFilePackets();
+    //testHarmfulPackets();
+    //return 0;
     
     evo_run();
     /*     TEST EVO            */

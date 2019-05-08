@@ -362,6 +362,9 @@ int runDynamorio(){
 /* Kills the process and collects the zombie */
 int killProc(int procId){
     kill(procId, SIGTERM);
+    if(configs.moduleStr.compare("libcoap") == 0){
+        system("killall coap-server");
+    }
     sleepMs(100);
     waitpid(procId, 0, WNOHANG);
     waitpid(0, 0, WNOHANG);

@@ -18,7 +18,7 @@
 
 const size_t POOLS_N = 5;
 const size_t SESSIONS_N = 5;
-const size_t PACKETS_N = 5;
+const size_t PACKETS_N = 10;
 
 bool rollOnPercentage(int chance){
     return (rand()%100) < chance;
@@ -65,15 +65,16 @@ void measureFitness(pool_t& pool){
 }
 
 /* Assigns [0-max) on parameters but not the same value */
-void assignTwoDifferentRandom(int& a, int& b, int max){
-    if(max < 2){
+void assignTwoDifferentRandom(int& a, int& b, int max, int min = 0){
+    if(max < 2 || max == min){
         std::cout << "Can't assign different randoms as max is smaller than 2 \n";
-        a = 0;
-        b = 0;
+        a = min;
+        b = min;
         return;
     }
-    a = rand()%max;
-    while((b = rand()%max) == a);
+    int range = (max-min);
+    a = (rand()%range) + min;
+    while((b = (rand()%range) + min) == a);
 }
 
 void measureFitness(std::vector<pool_t>& pools){
@@ -101,9 +102,15 @@ void evolvePoolCrossover(std::vector<pool_t>& pools){
     newPools.push_back(pools[0]);
 
     for(size_t j = 1; j < POOLS_N; j++){
-        bool topHalf = rollOnPercentage(70);
+        bool topHalfA = rollOnPercentage(70);
+        bool topHalfB = rollOnPercentage(70);
         int a,b;
-        assignTwoDifferentRandom(a,b, topHalf ? pools.size()/2 : pools.size());
+        int rangeA = topHalfA ? pools.size()/2 : pools.size();
+        int rangeB = topHalfB ? pools.size()/2 : pools.size();
+        if(rangeA != 0 && rangeB != 0){
+            a = (rand()%rangeA);
+            while((b = (rand()%rangeB)) == a);
+        }
         pool_t tmp_pool;
         tmp_pool.session_fitness.resize(SESSIONS_N);
         tmp_pool.sessions = poolCrossover(pools[a].sessions, pools[b].sessions, rand()%POOLS_N);
@@ -116,13 +123,17 @@ void evolvePoolCrossover(std::vector<pool_t>& pools){
 /* Chooses two different packets from each session to do a mutation on */
 void evolveSessionMutation(std::vector<pool_t>& pools){
     for(pool_t& p: pools){
-        for(auto& session: p.sessions){
-            int a,b;
-            //account for not changing most fit session
-            int maxRoll = SESSIONS_N-1;
-            assignTwoDifferentRandom(a,b, maxRoll);
-            a++; b++;
-            sessionMutation(session, a, b);
+        for(size_t i = 1; i < p.sessions.size(); i++){
+            bool session_mutation_b = rollOnPercentage(50);
+            if(session_mutation_b){
+                auto& session = p.sessions[i];
+                int a,b;
+                //account for not changing most fit session
+                int maxRoll = SESSIONS_N-1;
+                assignTwoDifferentRandom(a,b, maxRoll,1);
+                a++; b++;
+                sessionMutation(session, a, b);
+            }
         }
     }
 }
@@ -136,9 +147,15 @@ void evolveSessionCrossover(std::vector<pool_t>& pools){
         std::vector<std::vector<coap_packet>> tmp;
         tmp.push_back(p.sessions[0]);
         for(size_t j = 1; j < SESSIONS_N; j++){
-            bool topHalf = rollOnPercentage(70);
+            bool topHalfA = rollOnPercentage(70);
+            bool topHalfB = rollOnPercentage(70);
             int a,b;
-            assignTwoDifferentRandom(a,b, topHalf ? p.sessions.size()/2 : p.sessions.size());
+            int rangeA = topHalfA ? p.sessions.size()/2 : p.sessions.size();
+            int rangeB = topHalfB ? p.sessions.size()/2 : p.sessions.size();
+            if(rangeA != 0 && rangeB != 0){
+                a = (rand()%rangeA);
+                while((b = (rand()%rangeB)) == a);
+            }
             tmp.push_back(sessionCrossover(p.sessions[a], p.sessions[b], rand()%SESSIONS_N));
         }
         p.sessions = tmp;
@@ -147,23 +164,23 @@ void evolveSessionCrossover(std::vector<pool_t>& pools){
 
 /* Performs an evolution step on the pools. Assumes a sorted list with the smallest
  * index being the most fit */
-void evolve(std::vector<pool_t>& pools){
+void evolve(std::vector<pool_t>& pools, int generation){
     //Session crossover happens every generation
     //
     evolveSessionCrossover(pools);
+    if(generation == 0){
+        return;
+    }
     
-    bool session_mutation_b = rollOnPercentage(50);
-    if(session_mutation_b){
+    if(generation % 3 == 0){
         evolveSessionMutation(pools);
     }
 
-    bool pool_crossover_b = rollOnPercentage(25);
-    if(pool_crossover_b){
+    if(generation % 5 == 0){
         evolvePoolCrossover(pools);
     }
 
-    bool pool_mutation_b = rollOnPercentage(25);
-    if(pool_mutation_b){
+    if(generation % 9 == 0){
         evolvePoolMutation(pools);
     }
 
@@ -207,11 +224,16 @@ void evo_run(){
     int generation = 0;
     std::string name = create_fitness_log();
     std::cout << "Fitness log: " << name << "\n";
-    while(1){
+    //Start timer
+    using Clock=std::chrono::high_resolution_clock;
+    auto start = Clock::now();
+    while(generation < 100){
         measureFitness(pools);
         log_fitness(name, generation, pools[0].pool_fitness, getMaxSessionFitness(pools)); 
-        evolve(pools);
+        evolve(pools, generation);
         generation++;
+        auto endGen = Clock::now();
+        std::cout << "Time for one generation" << std::chrono::duration_cast<std::chrono::seconds>(endGen - start).count() << " seconds\n";
     }
 
 }
