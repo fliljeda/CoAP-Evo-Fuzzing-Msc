@@ -120,7 +120,7 @@ void evolvePoolCrossover(std::vector<pool_t>& pools){
     pools = newPools;
 }
 
-/* Chooses two different packets from each session to do a mutation on */
+/* 50% chance to mutate any session in any pool with the exception of the most fit session*/
 void evolveSessionMutation(std::vector<pool_t>& pools){
     for(pool_t& p: pools){
         for(size_t i = 1; i < p.sessions.size(); i++){
